@@ -8,7 +8,7 @@
                  [cheshire "5.11.0"]
                  [environ "1.2.0"]
                  [http-kit "2.5.3"]]
-  :main ^:skip-aot sms-notifier-prototype.core
+  :main ^:skip-aot sms-notifier.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all
                        :jvm-opts ["-Dclojure.compiler.direct-linking=true"]}})
