@@ -106,3 +106,30 @@ Para executar o protótipo completo, você precisará de dois terminais: um para
     --------------------------------------------------
     ```
 *   Nas consultas seguintes, se a mesma notificação for detectada, você verá uma mensagem indicando que ela já foi processada e será ignorada, validando a lógica de idempotência.
+
+---
+
+## Deploy no Render
+
+Para fazer o deploy deste serviço no [Render](https://render.com/), siga os seguintes passos. Recomenda-se fazer o deploy deste serviço como um **Background Worker**.
+
+1.  **Conecte seu repositório** Git ao Render.
+2.  Crie um novo **Background Worker**.
+3.  Use as seguintes configurações durante a criação do serviço:
+
+    *   **Build Command**:
+        ```sh
+        ./build.sh
+        ```
+
+    *   **Start Command**:
+        ```sh
+        java -jar target/uberjar/sms-notifier-prototype-0.1.0-SNAPSHOT-standalone.jar
+        ```
+        *Nota: O nome do arquivo JAR pode variar. Verifique o nome exato no diretório `target/uberjar` após a primeira build.*
+
+4.  **Adicione as Variáveis de Ambiente** na aba "Environment" do seu serviço no Render:
+    *   `WATCHER_URL`: Aponte para a URL interna do seu serviço `notification-watcher` no Render (ex: `http://notification-watcher:8080` ou a URL `.onrender.com`).
+    *   `MOCK_CUSTOMER_DATA`: Cole a sua string JSON de contatos mockados.
+
+Após salvar, o Render irá construir e iniciar o serviço automaticamente. Você poderá ver os logs (incluindo as notificações simuladas) na aba "Logs" do serviço.
