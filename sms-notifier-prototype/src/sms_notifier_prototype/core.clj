@@ -1,7 +1,8 @@
 (ns sms-notifier-prototype.core
   (:require [clj-http.client :as client]
             [cheshire.core :as json]
-            [environ.core :refer [env]])
+            [environ.core :refer [env]]
+            [org.httpkit.server :as server])
   (:gen-class))
 
 ;; Atom para garantir a idempotência. Armazenará chaves únicas para notificações já processadas.
@@ -77,16 +78,26 @@
   []
   (println "Iniciando o loop do SMS Notifier Prototype...")
   (future
+    (Thread/sleep 30000) ; Atraso inicial para dar tempo a outras partes do sistema de inicializarem
     (loop []
       (fetch-and-process-templates)
       (Thread/sleep 60000) ; Espera 1 minuto
       (recur))))
 
+(defn app-handler [request]
+  "Handler HTTP simples para o Web Service."
+  {:status 200
+   :headers {"Content-Type" "text/plain; charset=utf-8"}
+   :body "Serviço SMS Notifier Prototype está no ar e o worker está rodando em background."})
+
 (defn -main
   "Ponto de entrada principal da aplicação."
   [& args]
-  (println "======================================")
-  (println "  SMS Notifier Prototype v0.1.0")
-  (println "======================================")
-  (parse-customer-data)
-  (start-notifier-loop!))
+  (let [port (Integer/parseInt (env :port "8080"))]
+    (println "======================================")
+    (println "  SMS Notifier Prototype v0.2.0")
+    (println "======================================")
+    (parse-customer-data)
+    (start-notifier-loop!)
+    (server/run-server app-handler {:port port})
+    (println (str "Servidor web iniciado na porta " port ". O worker de notificação está ativo."))))
