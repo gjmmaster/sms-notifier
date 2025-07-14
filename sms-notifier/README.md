@@ -57,19 +57,19 @@ Para executar o sistema completo, você precisará de dois terminais: um para o 
     export MOCK_CUSTOMER_MANAGER_WABA_IDS="waba_id_1,waba_id_2"
     export PORT="8080"
     ```
-    *Nota: Os `MOCK_CUSTOMER_MANAGER_WABA_IDS` devem corresponder às chaves no `MOCK_CUSTOMER_DATA` do `sms-notifier-prototype`.*
+    *Nota: Os `MOCK_CUSTOMER_MANAGER_WABA_IDS` devem corresponder às chaves no `MOCK_CUSTOMER_DATA` do `sms-notifier`.*
 
 3.  **Execute o serviço**:
     ```sh
     lein run
     ```
-    O serviço irá iniciar e, após um breve atraso, começará a popular seus dados mockados. O endpoint `http://localhost:8080/changed-templates` estará ativo.
+    O serviço irá iniciar na porta `8080`.
 
-### Terminal 2: Executar o `sms-notifier-prototype`
+### Terminal 2: Executar o `sms-notifier`
 
 1.  **Navegue até o diretório** deste projeto:
     ```sh
-    cd ../sms-notifier-prototype
+    cd ../sms-notifier
     ```
 
 2.  **Configure as variáveis de ambiente**. Crie ou edite seu arquivo `.env` ou exporte as seguintes variáveis:
@@ -90,9 +90,9 @@ Para executar o sistema completo, você precisará de dois terminais: um para o 
 
 ### O que Esperar
 
-*   No terminal do `sms-notifier-prototype`, você verá logs indicando que ele está consultando o `notification-watcher`.
-*   Quando o `notification-watcher` tiver dados de templates alterados, o `sms-notifier-prototype` irá recebê-los.
-*   Você verá no console do `sms-notifier-prototype` uma saída formatada que **simula o envio de um SMS**, mais ou menos assim:
+*   No terminal do `sms-notifier`, você verá logs indicando que ele está consultando o `notification-watcher`.
+*   Quando o `notification-watcher` tiver dados de templates alterados, o `sms-notifier` irá recebê-los.
+*   Você verá no console do `sms-notifier` uma saída formatada que **simula o envio de um SMS**, mais ou menos assim:
 
     ```
     --------------------------------------------------
