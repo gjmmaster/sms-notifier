@@ -111,14 +111,23 @@ Para executar o protótipo completo, você precisará de dois terminais: um para
 
 ## Deploy no Render com Docker
 
-Para fazer o deploy deste serviço no [Render](https://render.com/), siga os seguintes passos. Recomenda-se fazer o deploy deste serviço como um **Background Worker**, pois ele não precisa expor uma porta pública.
+Para fazer o deploy deste serviço no [Render](https://render.com/) no plano gratuito, ele deve ser configurado como um **Web Service**.
+
+O serviço foi adaptado para iniciar um servidor web mínimo para satisfazer os requisitos do Render, enquanto o processo principal de notificação continua rodando em background.
+
+### Instruções de Configuração
 
 1.  **Conecte seu repositório** Git ao Render.
-2.  Crie um novo **Background Worker**.
-3.  Durante a criação, Render irá detectar o `Dockerfile` no seu repositório. Selecione esta opção para o deploy. O Render não precisará de um "Build Command" ou "Start Command", pois eles já estão definidos dentro do `Dockerfile` (`lein uberjar` e `java -jar app.jar`).
+2.  Crie um novo **Web Service**.
+3.  Durante a criação, o Render irá detectar o `Dockerfile` no seu repositório. Selecione esta opção para o deploy. Os comandos de build e de início já estão definidos dentro do `Dockerfile`.
 
-4.  **Adicione as Variáveis de Ambiente** na aba "Environment" do seu serviço no Render. Estas irão sobrescrever os valores `ENV` definidos no `Dockerfile`.
-    *   `WATCHER_URL`: Aponte para a URL interna do seu serviço `notification-watcher` no Render (ex: `http://notification-watcher:8080` ou a URL `.onrender.com` fornecida pelo Render).
+4.  **Porta (Port)**:
+    *   O `Dockerfile` expõe a porta `8080`. O Render detectará isso automaticamente. Certifique-se de que a configuração de porta no Render esteja definida como `8080`.
+
+5.  **Adicione as Variáveis de Ambiente** na aba "Environment" do seu serviço no Render. Estas irão sobrescrever os valores `ENV` definidos no `Dockerfile`.
+    *   `WATCHER_URL`: Aponte para a URL pública do seu serviço `notification-watcher` no Render (ex: `https://notification-watcher.onrender.com`).
     *   `MOCK_CUSTOMER_DATA`: Cole a sua string JSON de contatos mockados. Ex: `'{"waba_id_1": "+5511999998888"}'`.
+    *   `PORT`:
+        *   **Valor:** `8080`
 
-Após salvar, o Render irá construir a imagem Docker a partir do seu `Dockerfile` e iniciar o contêiner. Você poderá ver os logs (incluindo as notificações simuladas) na aba "Logs" do serviço.
+Após salvar, o Render irá construir a imagem Docker, implantar e iniciar o serviço. A URL pública dele mostrará uma mensagem de status, e o worker de notificação estará ativo, com os logs visíveis na aba "Logs".

@@ -6,7 +6,8 @@
   :dependencies [[org.clojure/clojure "1.11.1"]
                  [clj-http "3.12.3"]
                  [cheshire "5.11.0"]
-                 [environ "1.2.0"]]
+                 [environ "1.2.0"]
+                 [http-kit "2.5.3"]]
   :main ^:skip-aot sms-notifier-prototype.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all

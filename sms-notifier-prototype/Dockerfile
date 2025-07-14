@@ -28,6 +28,10 @@ COPY --from=builder /app/target/uberjar/sms-notifier-prototype-0.1.0-SNAPSHOT-st
 # Defina as variáveis de ambiente (serão substituídas pelas configurações do Render, se fornecidas)
 ENV WATCHER_URL="http://localhost:8080"
 ENV MOCK_CUSTOMER_DATA='{}'
+ENV PORT="8080"
+
+# Exponha a porta que o servidor web irá usar
+EXPOSE 8080
 
 # Comando para executar a aplicação quando o contêiner iniciar
 CMD ["java", "-jar", "app.jar"]
