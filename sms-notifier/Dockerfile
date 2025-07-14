@@ -23,7 +23,7 @@ FROM openjdk:11-jre-slim
 WORKDIR /app
 
 # Copie o uberjar da etapa de build para a imagem final
-COPY --from=builder /app/target/uberjar/sms-notifier-prototype-0.1.0-SNAPSHOT-standalone.jar ./app.jar
+COPY --from=builder /app/target/uberjar/sms-notifier-0.1.0-SNAPSHOT-standalone.jar ./app.jar
 
 # Defina as variáveis de ambiente (serão substituídas pelas configurações do Render, se fornecidas)
 ENV WATCHER_URL="http://localhost:8080"

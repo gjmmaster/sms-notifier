@@ -1,4 +1,4 @@
-(ns sms-notifier-prototype.core
+(ns sms-notifier.core
   (:require [clj-http.client :as client]
             [cheshire.core :as json]
             [environ.core :refer [env]]

@@ -1,17 +1,17 @@
-# SMS Notifier Prototype
+# SMS Notifier
 
 ## Visão Geral
 
-O `sms-notifier-prototype` é um microsserviço em Clojure que faz parte do **Protótipo Integrado do Sistema de Notificação (SNCT)**.
+O `sms-notifier` é um microsserviço em Clojure que faz parte do **Sistema de Notificação de Mudança de Categoria de Templates (SNCT)**.
 
-Seu propósito é validar o fluxo de notificação de ponta a ponta de forma simplificada. Ele opera da seguinte maneira:
+Seu propósito é validar o fluxo de notificação de ponta a ponta. Ele opera da seguinte maneira:
 
 1.  **Consome dados** do serviço `notification-watcher`, que detecta mudanças de categoria em templates de mensagens.
 2.  **Busca informações de contato** de clientes a partir de uma fonte de dados mockada (variável de ambiente).
 3.  **Simula o envio de notificações** por SMS, imprimindo os detalhes da notificação no console.
 4.  Garante a **idempotência**, ou seja, que a mesma notificação não seja processada repetidamente, usando um cache em memória.
 
-Este serviço **não utiliza um banco de dados**. Todo o seu estado (contatos e cache de notificações enviadas) é gerenciado em memória.
+Esta versão inicial **não utiliza um banco de dados**. Todo o seu estado (contatos e cache de notificações enviadas) é gerenciado em memória.
 
 ## Pré-requisitos
 
@@ -40,9 +40,9 @@ O serviço é configurado através de variáveis de ambiente. Você pode export�
         MOCK_CUSTOMER_DATA='{"waba_id_1": "+5511999998888", "waba_id_2": "+5521888887777"}'
         ```
 
-## Como Executar o Protótipo
+## Como Executar Localmente
 
-Para executar o protótipo completo, você precisará de dois terminais: um para o `notification-watcher` e outro para o `sms-notifier-prototype`.
+Para executar o sistema completo, você precisará de dois terminais: um para o `notification-watcher` e outro para o `sms-notifier`.
 
 ### Terminal 1: Executar o `notification-watcher`
 
@@ -51,7 +51,7 @@ Para executar o protótipo completo, você precisará de dois terminais: um para
     cd ../notification-watcher
     ```
 
-2.  **Configure as variáveis de ambiente**. Para o protótipo, é recomendado usar o modo mock da Gupshup. Crie ou edite seu arquivo `.env` ou exporte as seguintes variáveis:
+2.  **Configure as variáveis de ambiente**. Para testes, é recomendado usar o modo mock da Gupshup. Crie ou edite seu arquivo `.env` ou exporte as seguintes variáveis:
     ```sh
     export GUPSHUP_MOCK_MODE="true"
     export MOCK_CUSTOMER_MANAGER_WABA_IDS="waba_id_1,waba_id_2"
