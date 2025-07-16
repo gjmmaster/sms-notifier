@@ -28,8 +28,29 @@
   [waba-id]
   (get @mock-customer-data (keyword waba-id)))
 
+(defn send-sms-via-api
+  "Envia uma notificação por SMS utilizando a API real."
+  [phone message]
+  (if-let [sms-api-url (env :sms-api-url)]
+    (if-let [sms-api-token (env :sms-api-token)]
+      (let [payload {:user "sms-notifier"
+                     :type 2
+                     :contact [{:number phone :message message}]}
+            response (try
+                       (client/post (str sms-api-url "?token=" sms-api-token)
+                                    {:body (json/generate-string payload)
+                                     :content-type :json
+                                     :throw-exceptions false
+                                     :conn-timeout 5000
+                                     :socket-timeout 5000})
+                       (catch Exception e
+                         {:status 500 :body (str "Erro de conexão: " (.getMessage e))}))]
+        response)
+      {:status 500 :body "Variável de ambiente SMS_API_TOKEN não configurada."})
+    {:status 500 :body "Variável de ambiente SMS_API_URL não configurada."}))
+
 (defn process-notification
-  "Processa uma notificação, simula o envio e atualiza o cache de idempotência."
+  "Processa uma notificação, envia um SMS via API e atualiza o cache de idempotência."
   [template]
   (let [waba-id (:wabaId template)
         template-id (:id template)
@@ -39,17 +60,23 @@
     (if (@sent-notifications-cache notification-key)
       (println (str "Notificação para " notification-key " já processada. Ignorando."))
       (if-let [phone (get-contact-phone waba-id)]
-        (do
-          (println "--------------------------------------------------")
-          (println "SIMULANDO ENVIO DE SMS")
-          (println (str "PARA: " phone))
-          (println "MENSAGEM: Alerta de Mudança de Categoria de Template!")
-          (println (str "  - WABA ID: " waba-id))
-          (println (str "  - Template: " (:elementName template) " (" template-id ")"))
-          (println (str "  - Categoria Anterior: " (:oldCategory template)))
-          (println (str "  - Nova Categoria: " new-category))
-          (println "--------------------------------------------------")
-          (swap! sent-notifications-cache conj notification-key))
+        (let [message (str "Alerta de Mudança de Categoria de Template!\n"
+                           "  - WABA ID: " waba-id "\n"
+                           "  - Template: " (:elementName template) " (" template-id ")\n"
+                           "  - Categoria Anterior: " (:oldCategory template) "\n"
+                           "  - Nova Categoria: " new-category)
+              response (send-sms-via-api phone message)]
+          (if (= (:status response) 200)
+            (do
+              (println (str "SMS enviado com sucesso para " phone ". Template: " (:elementName template)))
+              (println (str "  - Resposta da API: " (if (map? (:body response))
+                                                     (json/generate-string (:body response))
+                                                     (:body response))))
+              (swap! sent-notifications-cache conj notification-key))
+            (do
+              (println (str "Falha ao enviar SMS para " phone ". Template: " (:elementName template)))
+              (println (str "  - Status: " (:status response)))
+              (println (str "  - Resposta da API: " (:body response))))))
         (println (str "Aviso: Telefone de contato não encontrado para o WABA ID: " waba-id))))))
 
 (defn fetch-and-process-templates
