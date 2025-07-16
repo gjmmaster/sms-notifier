@@ -55,23 +55,28 @@
 (defn fetch-and-process-templates
   "Busca templates alterados do notification-watcher e inicia o processamento."
   []
-  (let [watcher-url (env :watcher-url "http://localhost:8080")]
-    (println (str "Consultando " watcher-url "/changed-templates..."))
-    (try
-      (let [response (client/get (str watcher-url "/changed-templates")
-                                 {:as :json
-                                  :throw-exceptions false
-                                  :conn-timeout 5000
-                                  :socket-timeout 5000})
-            templates (get-in response [:body])]
-        (if (and (= (:status response) 200) (seq templates))
-          (do
-            (println (str "Recebidos " (count templates) " templates alterados."))
-            (doseq [template templates]
-              (process-notification template)))
-          (println "Nenhum template alterado encontrado ou erro na resposta.")))
-      (catch Exception e
-        (println (str "Erro ao conectar com o notification-watcher: " (.getMessage e)))))))
+  (if-let [watcher-url (env :watcher-url)]
+    ;; O código abaixo só será executado se a WATCHER_URL estiver definida.
+    (do
+      (println (str "Consultando " watcher-url "/changed-templates..."))
+      (try
+        (let [response (client/get (str watcher-url "/changed-templates")
+                                   {:as :json
+                                    :throw-exceptions false
+                                    :conn-timeout 5000
+                                    :socket-timeout 5000})
+              templates (get-in response [:body])]
+          (if (and (= (:status response) 200) (seq templates))
+            (do
+              (println (str "Recebidos " (count templates) " templates alterados."))
+              (doseq [template templates]
+                (process-notification template)))
+            (println "Nenhum template alterado encontrado ou erro na resposta.")))
+        (catch Exception e
+          (println (str "Erro ao conectar com o notification-watcher: " (.getMessage e))))))
+
+    ;; Este bloco será executado se a WATCHER_URL não estiver definida.
+    (println "ALERTA: A variável de ambiente WATCHER_URL não está configurada. A consulta ao watcher foi ignorada.")))
 
 (defn start-notifier-loop!
   "Inicia o loop principal do serviço em uma thread separada."
