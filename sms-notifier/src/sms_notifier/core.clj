@@ -30,22 +30,29 @@
 
 (defn send-sms-via-api
   "Envia uma notificação por SMS utilizando a API real."
-  [phone message]
+  [phone message external-id]
   (if-let [sms-api-url (env :sms-api-url)]
     (if-let [sms-api-token (env :sms-api-token)]
-      (let [payload {:user "sms-notifier"
-                     :type 2
-                     :contact [{:number phone :message message}]}
-            response (try
-                       (client/post (str sms-api-url "?token=" sms-api-token)
-                                    {:body (json/generate-string payload)
-                                     :content-type :json
-                                     :throw-exceptions false
-                                     :conn-timeout 5000
-                                     :socket-timeout 5000})
-                       (catch Exception e
-                         {:status 500 :body (str "Erro de conexão: " (.getMessage e))}))]
-        response)
+      (if-let [sms-api-user (env :sms-api-user)]
+        (let [payload {:user sms-api-user
+                       :type 2
+                       :contact [{:number phone
+                                  :message message
+                                  :externalid external-id}]
+                       :costcenter 0
+                       :fastsend 0
+                       :validate 0}
+              response (try
+                         (client/post (str sms-api-url "?token=" sms-api-token)
+                                      {:body (json/generate-string payload)
+                                       :content-type :json
+                                       :throw-exceptions false
+                                       :conn-timeout 5000
+                                       :socket-timeout 5000})
+                         (catch Exception e
+                           {:status 500 :body (str "Erro de conexão: " (.getMessage e))}))]
+          response)
+        {:status 500 :body "Variável de ambiente SMS_API_USER não configurada."})
       {:status 500 :body "Variável de ambiente SMS_API_TOKEN não configurada."})
     {:status 500 :body "Variável de ambiente SMS_API_URL não configurada."}))
 
@@ -65,7 +72,7 @@
                            "  - Template: " (:elementName template) " (" template-id ")\n"
                            "  - Categoria Anterior: " (:oldCategory template) "\n"
                            "  - Nova Categoria: " new-category)
-              response (send-sms-via-api phone message)]
+              response (send-sms-via-api phone message template-id)]
           (if (= (:status response) 200)
             (do
               (println (str "SMS enviado com sucesso para " phone ". Template: " (:elementName template)))
