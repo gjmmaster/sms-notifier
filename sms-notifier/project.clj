@@ -11,4 +11,6 @@
   :main ^:skip-aot sms-notifier.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all
-                       :jvm-opts ["-Dclojure.compiler.direct-linking=true"]}})
+                       :jvm-opts ["-Dclojure.compiler.direct-linking=true"]}
+             :dev {:dependencies [[clj-http-fake "1.0.4"]]
+                   :source-paths ["src" "test"]}})
