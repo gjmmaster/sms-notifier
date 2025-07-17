@@ -16,7 +16,7 @@ O `sms-notifier` é um serviço em Clojure desenhado para atuar como o component
 1.  **Consumir Dados de Mudanças:** Periodicamente, consultar o endpoint `/changed-templates` do serviço `notification-watcher` para obter a lista de templates que tiveram suas categorias alteradas.
 2.  **Mapear Contatos:** Para cada template alterado, identificar o cliente correspondente (via `wabaId`) e buscar seu número de telefone de contato em uma fonte de dados configurável (atualmente, uma variável de ambiente mockada).
 3.  **Garantir Idempotência:** Assegurar que uma notificação para uma mudança específica (mesmo template, mesma nova categoria) seja enviada apenas uma vez. Isso é feito através de um cache em memória.
-4.  **Simular o Envio de Notificações:** Formatar uma mensagem de alerta e imprimi-la no console, simulando o envio de um SMS. Na arquitetura alvo, este passo será substituído por uma chamada real a um provedor de SMS.
+4.  **Enviar Notificações via API:** Formatar uma mensagem de alerta e enviá-la como um SMS por meio de uma chamada a um provedor de SMS configurável.
 5.  **Operar como Web Service:** Expor um endpoint HTTP mínimo (`/`) para ser compatível com plataformas de deploy como o Render (plano gratuito), que exigem que os serviços respondam a requisições HTTP. O trabalho principal do serviço, no entanto, é executado em um processo de background.
 
 ## 3. Arquitetura Detalhada e Componentes do `core.clj`
@@ -104,15 +104,17 @@ A execução do serviço é orquestrada por três funções principais.
         4.  Em caso de erro de conexão ou status HTTP inesperado, loga uma mensagem de erro e o ciclo termina, aguardando a próxima iteração.
 
 *   **`process-notification [template]`**
-    *   **Propósito:** Contém a lógica central para uma única notificação.
+    *   **Propósito:** Contém a lógica central para processar uma única notificação, incluindo o envio real do SMS.
     *   **Fluxo de Execução:**
         1.  Extrai `wabaId`, `id` e `category` do mapa do template.
         2.  Cria uma `notification-key` única (ex: `"template_abc_UTILITY"`).
         3.  Verifica se a `notification-key` **já existe** no `@sent-notifications-cache`. Se sim, loga uma mensagem e para.
         4.  Se a chave não existe, chama `get-contact-phone` para buscar o número do contato.
         5.  Se o contato for encontrado:
-            *   Formata e imprime a mensagem de simulação de SMS no console.
-            *   Adiciona a `notification-key` ao `sent-notifications-cache` usando `swap!`.
+            *   Formata a mensagem de alerta.
+            *   Chama `send-sms-via-api` para enviar a notificação.
+            *   Se o envio for bem-sucedido (status 200), adiciona a `notification-key` ao `sent-notifications-cache` usando `swap!`.
+            *   Se o envio falhar, loga um erro detalhado com a resposta da API.
         6.  Se o contato não for encontrado, loga um aviso.
 
 ## 4. Considerações para Evolução Futura

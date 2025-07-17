@@ -4,9 +4,9 @@
 
 O `sms-notifier` é um microsserviço em Clojure que faz parte do **Sistema de Notificação de Mudança de Categoria de Templates (SNCT)**.
 
-Seu propósito é consumir informações sobre mudanças de templates do serviço `notification-watcher`, identificar o cliente afetado e enviar uma notificação.
+Seu propósito é consumir informações sobre mudanças de templates do serviço `notification-watcher`, identificar o cliente afetado e enviar uma notificação por SMS através de uma API.
 
-Esta versão inicial do serviço opera com um cache de idempotência em memória e uma fonte de dados de contato mockada (configurada por variáveis de ambiente), e simula o envio de SMS imprimindo no console.
+Esta versão do serviço opera com um cache de idempotência em memória e uma fonte de dados de contato mockada (configurada por variáveis de ambiente).
 
 ## Documentação Detalhada
 
@@ -53,6 +53,9 @@ Para executar o sistema completo em seu ambiente local, você precisará de dois
     ```sh
     export WATCHER_URL="http://localhost:8080"
     export MOCK_CUSTOMER_DATA='{"waba_id_1": "+5511999998888", "waba_id_2": "+5521888887777"}'
+    export SMS_API_URL="URL_DA_API"
+    export SMS_API_TOKEN="TOKEN_DA_API"
+    export SMS_API_USER="USUARIO_DA_API"
     ```
 
 3.  **Instale as dependências**:

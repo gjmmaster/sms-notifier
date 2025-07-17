@@ -20,6 +20,9 @@ O serviço foi projetado para iniciar um servidor web mínimo que responde a req
 5.  **Adicione as Variáveis de Ambiente** na aba "Environment" do seu serviço no Render. Estas irão sobrescrever os valores `ENV` definidos no `Dockerfile`.
     *   `WATCHER_URL`: Aponte para a URL pública do seu serviço `notification-watcher` no Render (ex: `https://notification-watcher.onrender.com`).
     *   `MOCK_CUSTOMER_DATA`: Cole a sua string JSON de contatos mockados. Ex: `'{"waba_id_1": "+5511999998888"}'`.
+    *   `SMS_API_URL`: A URL do provedor de SMS.
+    *   `SMS_API_TOKEN`: O token de autenticação para a API de SMS.
+    *   `SMS_API_USER`: O nome de usuário para a API de SMS.
     *   `PORT`:
         *   **Valor:** `8080` (O Render usa esta variável para rotear o tráfego corretamente para o contêiner).
 

@@ -66,7 +66,7 @@ O sistema é desenhado com dois microsserviços que se comunicam via HTTP, com d
           * Verificar em um cache em memória (um `atom`) se uma notificação para essa mudança específica já foi processada (garantia de idempotência).
           * Se a notificação for nova e um contato for encontrado:
               * Formatar uma mensagem de alerta detalhada.
-              * **Simular o envio** imprimindo a mensagem formatada no console (`println`).
+              * **Enviar um SMS** através de uma API de verdade.
               * Registrar que a notificação foi processada no cache em memória.
   * **Estado:** Sem estado persistente, utiliza um `atom` para o cache de idempotência.
 
@@ -144,6 +144,12 @@ Ambos os serviços serão configurados via variáveis de ambiente. Recomenda-se 
     WATCHER_URL="http://localhost:8080"
     # String JSON contendo os dados de contato mockados
     MOCK_CUSTOMER_DATA='{"waba_id_1": "+5511999998888", "waba_id_2": "+5521888887777"}'
+    # URL da API de SMS
+    SMS_API_URL="URL_DA_API"
+    # Token da API de SMS
+    SMS_API_TOKEN="TOKEN_DA_API"
+    # Usuário da API de SMS
+    SMS_API_USER="USUARIO_DA_API"
     ```
 
 **Passo 2: Executar os Serviços**
