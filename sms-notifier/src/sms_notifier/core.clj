@@ -33,34 +33,6 @@
   (swap! sent-notifications-cache conj key)
   (println (str "Chave " key " salva no DB e no cache em memória.")))
 
-(defn process-notification
-  "Processa uma notificação, usando o cache em memória para checagem e salvando no DB para persistência."
-  [template]
-  (let [waba-id (:wabaId template)
-        template-id (:id template)
-        new-category (:category template)
-        notification-key (str template-id "_" new-category)]
-
-    (if (@sent-notifications-cache notification-key)
-      (println (str "Notificação para " notification-key " já processada (cache). Ignorando."))
-      (if-let [phone (get-contact-phone waba-id)]
-        (let [message (str "Alerta de Mudança de Categoria de Template!\n"
-                           "  - WABA ID: " waba-id "\n"
-                           "  - Template: " (:elementName template) " (" template-id ")\n"
-                           "  - Categoria Anterior: " (:oldCategory template) "\n"
-                           "  - Nova Categoria: " new-category)
-              response (send-sms-via-api phone message template-id)]
-          (if (= (:status response) 200)
-            (do
-              (println (str "SMS enviado para " phone ". Template: " (:elementName template)))
-              (try
-                (jdbc/with-db-connection [db-conn db-spec]
-                  (save-notification-key! db-conn notification-key))
-                (catch Exception e
-                  (println (str "ERRO DE BANCO DE DADOS ao salvar chave: " (.getMessage e))))))
-            (println (str "Falha ao enviar SMS para " phone ". Resposta da API: " (:body response)))))
-        (println (str "Aviso: Telefone não encontrado para o WABA ID: " waba-id))))))
-
 (defn parse-customer-data []
   (if-let [customer-data-json (env :mock-customer-data)]
     (try
@@ -89,6 +61,34 @@
       {:status 500 :body "SMS_API_TOKEN não configurada."})
     {:status 500 :body "SMS_API_URL não configurada."}))
 
+(defn process-notification
+  "Processa uma notificação, usando o cache em memória para checagem e salvando no DB para persistência."
+  [template]
+  (let [waba-id (:wabaId template)
+        template-id (:id template)
+        new-category (:category template)
+        notification-key (str template-id "_" new-category)]
+
+    (if (@sent-notifications-cache notification-key)
+      (println (str "Notificação para " notification-key " já processada (cache). Ignorando."))
+      (if-let [phone (get-contact-phone waba-id)]
+        (let [message (str "Alerta de Mudança de Categoria de Template!\n"
+                           "  - WABA ID: " waba-id "\n"
+                           "  - Template: " (:elementName template) " (" template-id ")\n"
+                           "  - Categoria Anterior: " (:oldCategory template) "\n"
+                           "  - Nova Categoria: " new-category)
+              response (send-sms-via-api phone message template-id)]
+          (if (= (:status response) 200)
+            (do
+              (println (str "SMS enviado para " phone ". Template: " (:elementName template)))
+              (try
+                (jdbc/with-db-connection [db-conn db-spec]
+                  (save-notification-key! db-conn notification-key))
+                (catch Exception e
+                  (println (str "ERRO DE BANCO DE DADOS ao salvar chave: " (.getMessage e))))))
+            (println (str "Falha ao enviar SMS para " phone ". Resposta da API: " (:body response)))))
+        (println (str "Aviso: Telefone não encontrado para o WABA ID: " waba-id))))))
+
 (defn fetch-and-process-templates []
   (if-let [watcher-url (env :watcher-url)]
     (try
@@ -112,8 +112,7 @@
     (Thread/sleep 30000)
     (loop []
       (fetch-and-process-templates)
-      ;; --- ALTERAÇÃO DO INTERVALO DE CONSULTA ---
-      (Thread/sleep 240000) ; Espera 4 minutos (240.000 ms)
+      (Thread/sleep 240000) ; Espera 4 minutos
       (recur))))
 
 (defn app-handler [request]
@@ -124,7 +123,7 @@
   [& args]
   (let [port (Integer/parseInt (env :port "8080"))]
     (println "======================================")
-    (println "  SMS Notifier v0.3.1 (Cache Híbrido, 4 min)")
+    (println "  SMS Notifier v0.3.2 (Cache Híbrido, 4 min, Corrigido)")
     (println "======================================")
     (load-keys-from-db!)
     (parse-customer-data)
