@@ -6,7 +6,6 @@ WORKDIR /app
 
 # Copie os arquivos de definição do projeto primeiro para aproveitar o cache do Docker
 COPY project.clj .
-
 # Baixe as dependências. Isso será cacheado se o project.clj não mudar.
 RUN lein deps
 
@@ -22,8 +21,9 @@ FROM openjdk:11-jre-slim
 # Defina o diretório de trabalho
 WORKDIR /app
 
-# Copie o uberjar da etapa de build para a imagem final
-COPY --from=builder /app/target/uberjar/sms-notifier-0.1.0-SNAPSHOT-standalone.jar ./app.jar
+# --- LINHA CORRIGIDA ---
+# Copie o uberjar com a VERSÃO CORRETA da etapa de build para a imagem final
+COPY --from=builder /app/target/uberjar/sms-notifier-0.2.0-SNAPSHOT-standalone.jar ./app.jar
 
 # Defina as variáveis de ambiente (serão substituídas pelas configurações do Render, se fornecidas)
 ENV WATCHER_URL="http://localhost:8080"
