@@ -47,19 +47,26 @@
   (get @mock-customer-data (keyword waba-id)))
 
 (defn send-sms-via-api [phone message external-id]
+  "Envia uma notificação por SMS utilizando a API real."
   (if-let [sms-api-url (env :sms-api-url)]
     (if-let [sms-api-token (env :sms-api-token)]
       (if-let [sms-api-user (env :sms-api-user)]
         (let [payload {:user sms-api-user, :type 2, :contact [{:number phone, :message message, :externalid external-id}], :costcenter 0, :fastsend 0, :validate 0}
               response (try
                          (client/post (str sms-api-url "?token=" sms-api-token)
-                                      {:body (json/generate-string payload), :content-type :json, :throw-exceptions false, :conn-timeout 5000, :socket-timeout 5000})
+                                      {:body (json/generate-string payload)
+                                       :content-type :json
+                                       :throw-exceptions false
+                                       ;; TIMEOUT MÁXIMO PRÁTICO: 5 MINUTOS
+                                       :conn-timeout 300000
+                                       :socket-timeout 300000})
                          (catch Exception e
                            {:status 500 :body (str "Erro de conexão: " (.getMessage e))}))]
           response)
         {:status 500 :body "SMS_API_USER não configurada."})
       {:status 500 :body "SMS_API_TOKEN não configurada."})
     {:status 500 :body "SMS_API_URL não configurada."}))
+
 
 (defn process-notification
   "Processa uma notificação, usando o cache em memória para checagem e salvando no DB para persistência."
@@ -116,14 +123,14 @@
       (recur))))
 
 (defn app-handler [request]
-  {:status 200, :headers {"Content-Type" "text/plain; charset=utf-8"}, :body "Serviço SMS Notifier (com DB-cache) está no ar."})
+  {:status 200, :headers {"Content-Type" "text/plain; charset=utf-8"}, :body "Serviço SMS Notifier está no ar."})
 
 (defn -main
   "Ponto de entrada principal da aplicação."
   [& args]
   (let [port (Integer/parseInt (env :port "8080"))]
     (println "======================================")
-    (println "  SMS Notifier v0.3.2 (Cache Híbrido, 4 min, Corrigido)")
+    (println "  SMS Notifier v0.3.4 (Timeout Extendido)")
     (println "======================================")
     (load-keys-from-db!)
     (parse-customer-data)
