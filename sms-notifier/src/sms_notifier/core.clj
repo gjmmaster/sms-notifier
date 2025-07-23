@@ -36,7 +36,6 @@
        (do
          (println (str "Operação de DB '" ~db-op-name "' ignorada. Circuito está aberto."))
          (throw (Exception. (str "Circuit Breaker is open for " ~db-op-name))))
-       ;; Se o circuito estiver fechado ou o tempo de reset passou, tente a operação
        (try
          (let [result# (do ~@body)]
            (reset-circuit-breaker!)
@@ -46,7 +45,7 @@
            (trip-circuit-breaker!)
            (throw e#))))))
 
-;; --- FUNÇÕES DO SERVIÇO ATUALIZADAS PARA USAR O CIRCUIT BREAKER ---
+;; --- FUNÇÕES HELPER (DEFINIDAS ANTES DE SEREM USADAS) ---
 
 (defn load-keys-from-db! []
   (if-not db-spec
@@ -67,6 +66,37 @@
   (jdbc/insert! db-conn :sent_notifications {:notification_key key})
   (swap! sent-notifications-cache conj key)
   (println (str "Chave " key " salva no DB e no cache em memória.")))
+
+(defn parse-customer-data []
+  (if-let [customer-data-json (env :mock-customer-data)]
+    (try
+      (let [parsed-data (json/parse-string customer-data-json true)]
+        (reset! mock-customer-data parsed-data)
+        (println "Dados de clientes mockados carregados."))
+      (catch Exception e
+        (println (str "Erro ao parsear MOCK_CUSTOMER_DATA: " (.getMessage e)))))
+    (println "Aviso: MOCK_CUSTOMER_DATA não definida.")))
+
+(defn get-contact-phone [waba-id]
+  (get @mock-customer-data (keyword waba-id)))
+
+(defn send-sms-via-api [phone message external-id]
+  (if-let [sms-api-url (env :sms-api-url)]
+    (if-let [sms-api-token (env :sms-api-token)]
+      (if-let [sms-api-user (env :sms-api-user)]
+        (let [payload {:user sms-api-user, :type 2, :contact [{:number phone, :message message, :externalid external-id}], :costcenter 0, :fastsend 0, :validate 0}
+              response (try
+                         (client/post (str sms-api-url "?token=" sms-api-token)
+                                      {:body (json/generate-string payload), :content-type :json, :throw-exceptions false,
+                                       :conn-timeout 300000, :socket-timeout 300000})
+                         (catch Exception e
+                           {:status 500 :body (str "Erro de conexão: " (.getMessage e))}))]
+          response)
+        {:status 500 :body "SMS_API_USER não configurada."})
+      {:status 500 :body "SMS_API_TOKEN não configurada."})
+    {:status 500 :body "SMS_API_URL não configurada."}))
+
+;; --- LÓGICA PRINCIPAL ---
 
 (defn process-notification [template]
   (let [waba-id (:wabaId template)
@@ -92,33 +122,6 @@
             (println (str "Falha ao enviar SMS para " phone ". Resposta da API: " (:body response)))))
         (println (str "Aviso: Telefone não encontrado para o WABA ID: " waba-id))))))
 
-;; --- RESTANTE DO CÓDIGO (sem alterações) ---
-(defn parse-customer-data []
-  (if-let [customer-data-json (env :mock-customer-data)]
-    (try
-      (let [parsed-data (json/parse-string customer-data-json true)]
-        (reset! mock-customer-data parsed-data)
-        (println "Dados de clientes mockados carregados."))
-      (catch Exception e
-        (println (str "Erro ao parsear MOCK_CUSTOMER_DATA: " (.getMessage e)))))
-    (println "Aviso: MOCK_CUSTOMER_DATA não definida.")))
-(defn get-contact-phone [waba-id]
-  (get @mock-customer-data (keyword waba-id)))
-(defn send-sms-via-api [phone message external-id]
-  (if-let [sms-api-url (env :sms-api-url)]
-    (if-let [sms-api-token (env :sms-api-token)]
-      (if-let [sms-api-user (env :sms-api-user)]
-        (let [payload {:user sms-api-user, :type 2, :contact [{:number phone, :message message, :externalid external-id}], :costcenter 0, :fastsend 0, :validate 0}
-              response (try
-                         (client/post (str sms-api-url "?token=" sms-api-token)
-                                      {:body (json/generate-string payload), :content-type :json, :throw-exceptions false,
-                                       :conn-timeout 300000, :socket-timeout 300000})
-                         (catch Exception e
-                           {:status 500 :body (str "Erro de conexão: " (.getMessage e))}))]
-          response)
-        {:status 500 :body "SMS_API_USER não configurada."})
-      {:status 500 :body "SMS_API_TOKEN não configurada."})
-    {:status 500 :body "SMS_API_URL não configurada."}))
 (defn fetch-and-process-templates []
   (if-let [watcher-url (env :watcher-url)]
     (try
@@ -133,6 +136,7 @@
       (catch Exception e
         (println (str "Erro ao conectar com o notification-watcher: " (.getMessage e)))))
     (println "ALERTA: WATCHER_URL não configurada.")))
+
 (defn start-notifier-loop! []
   (println "Iniciando o loop do SMS Notifier...")
   (future
@@ -141,6 +145,7 @@
       (fetch-and-process-templates)
       (Thread/sleep 240000)
       (recur))))
+
 (defn app-handler [request]
   {:status 200, :headers {"Content-Type" "text/plain; charset=utf-8"}, :body "Serviço SMS Notifier está no ar."})
 
@@ -148,24 +153,19 @@
 (defn -main [& args]
   (let [port (Integer/parseInt (env :port "8080"))]
     (println "======================================")
-    (println "  SMS Notifier v0.4.0 (Resiliente)")
+    (println "  SMS Notifier v0.4.1 (Resiliente, Ordem Corrigida)")
     (println "======================================")
     
     (load-keys-from-db!)
     (parse-customer-data)
     
-    ;; VERIFICAÇÃO DE SEGURANÇA: O ATOMO ESTÁ VAZIO?
     (if (and (some? db-spec) (empty? @sent-notifications-cache))
       (do
         (println "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
         (println "!! ERRO CRÍTICO DE SEGURANÇA: O CACHE DE NOTIFICAÇÕES ESTÁ VAZIO. !!")
-        (println "!! Isso indica que a carga inicial do banco de dados falhou.      !!")
         (println "!! PARA PREVENIR O REENVIO EM MASSA DE SMS, O WORKER NÃO SERÁ INICIADO. !!")
-        (println "!! Verifique a conexão com o banco de dados e reinicie o serviço. !!")
         (println "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n")
-        ;; Inicia apenas o servidor web para a plataforma de deploy não matar o serviço.
         (server/run-server (fn [req] {:status 503 :body "Serviço em modo de segurança. Worker inativo."}) {:port port}))
-      ;; Se tudo estiver OK, inicie o loop normalmente.
       (do
         (start-notifier-loop!)
         (server/run-server app-handler {:port port})
