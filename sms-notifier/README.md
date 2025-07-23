@@ -1,9 +1,3 @@
-Claro\! Com base na análise de todo o código e da documentação atualizada, preparei um novo arquivo `README.md` que reflete com precisão o estado atual do serviço, incluindo a persistência de dados e as novas configurações.
-
-Aqui está o conteúdo que você pode usar para substituir o `sms-notifier/README.md` existente:
-
------
-
 # SMS Notifier
 
 ## Visão Geral
