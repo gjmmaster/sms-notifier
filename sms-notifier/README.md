@@ -1,70 +1,102 @@
+Claro\! Com base na análise de todo o código e da documentação atualizada, preparei um novo arquivo `README.md` que reflete com precisão o estado atual do serviço, incluindo a persistência de dados e as novas configurações.
+
+Aqui está o conteúdo que você pode usar para substituir o `sms-notifier/README.md` existente:
+
+-----
+
 # SMS Notifier
 
 ## Visão Geral
 
 O `sms-notifier` é um microsserviço em Clojure que faz parte do **Sistema de Notificação de Mudança de Categoria de Templates (SNCT)**.
 
-Seu propósito é consumir informações sobre mudanças de templates do serviço `notification-watcher`, identificar o cliente afetado e enviar uma notificação.
+Sua função é consumir alertas sobre mudanças de categoria de templates do serviço `notification-watcher`, identificar o cliente afetado e enviar uma notificação por SMS. Esta versão do serviço é robusta e pronta para produção, utilizando um **banco de dados para garantir a idempotência** e a resiliência do processo de notificação.
 
-Esta versão inicial do serviço opera com um cache de idempotência em memória e uma fonte de dados de contato mockada (configurada por variáveis de ambiente), e simula o envio de SMS imprimindo no console.
+## Principais Funcionalidades
+
+  * **Consumo de Alertas**: Periodicamente, o serviço consulta o endpoint `/changed-templates` do `notification-watcher` para buscar novas mudanças.
+  * **Envio de Notificações por SMS**: Integra-se com uma API de SMS externa para enviar alertas formatados aos contatos dos clientes.
+  * **Idempotência com Persistência**: Utiliza um banco de dados (como PostgreSQL) para registrar todas as notificações já enviadas. Isso previne o envio de alertas duplicados, mesmo que o serviço seja reiniciado.
+  * **Resiliência (Circuit Breaker)**: Implementa um padrão de Circuit Breaker que interrompe as operações com o banco de dados em caso de falhas repetidas, evitando sobrecarga e permitindo a recuperação do sistema.
+  * **Configuração Flexível**: O comportamento do serviço é totalmente controlado por variáveis de ambiente, facilitando o deploy em diferentes ambientes.
 
 ## Documentação Detalhada
 
-Para uma compreensão aprofundada da arquitetura, funcionamento interno, configuração e pontos de evolução do serviço, consulte a seguinte documentação:
+Para uma análise aprofundada da arquitetura, fluxo de dados, stack tecnológica e detalhes de implementação, consulte o documento principal do projeto:
 
-*   **[Documentação Técnica Detalhada (`SMS_Notifier_Status.md`)](./doc/SMS_Notifier_Status.md)**
-
-Para instruções sobre como implantar este serviço na plataforma Render, consulte o guia de deploy:
-
-*   **[Guia de Deploy no Render (`DEPLOY.md`)](./doc/DEPLOY.md)**
+  * **[Relatório Técnico Detalhado](https://www.google.com/search?q=./doc/prototipo/relatorio_tecnico_de_todo_prototipo)**
 
 ## Como Executar Localmente
 
-Para executar o sistema completo em seu ambiente local, você precisará de dois terminais: um para o `notification-watcher` e outro para o `sms-notifier`.
+Para executar o sistema em seu ambiente local, você precisará do `notification-watcher` e do `sms-notifier` rodando simultaneamente.
 
-### Terminal 1: Executar o `notification-watcher`
+### Pré-requisitos
 
-1.  **Navegue até o diretório** do `notification-watcher`:
-    ```sh
-    cd ../notification-watcher
-    ```
+  * Java (JDK 11+)
+  * Leiningen
+  * Acesso a uma instância de banco de dados PostgreSQL.
 
-2.  **Configure as variáveis de ambiente**. Para testes, é recomendado usar o modo mock da Gupshup:
+### Passo 1: Preparar o Banco de Dados
+
+Conecte-se ao seu banco de dados e execute o seguinte comando SQL para criar a tabela necessária para o controle de idempotência:
+
+```sql
+CREATE TABLE IF NOT EXISTS sent_notifications (
+    id SERIAL PRIMARY KEY,
+    notification_key VARCHAR(255) UNIQUE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Passo 2: Configurar e Executar o `notification-watcher`
+
+Abra um terminal e siga os passos para o serviço de dependência.
+
+1.  **Navegue até o diretório** do `notification-watcher`.
+2.  **Configure as variáveis de ambiente**. Para testes, é recomendado usar o modo mock:
     ```sh
     export GUPSHUP_MOCK_MODE="true"
     export MOCK_CUSTOMER_MANAGER_WABA_IDS="waba_id_1,waba_id_2"
-    export PORT="8080"
+    export PORT="8081" # Use uma porta diferente do sms-notifier
     ```
-    *Nota: Os `MOCK_CUSTOMER_MANAGER_WABA_IDS` devem corresponder às chaves no `MOCK_CUSTOMER_DATA` do `sms-notifier`.*
-
 3.  **Execute o serviço**:
     ```sh
     lein run
     ```
 
-### Terminal 2: Executar o `sms-notifier`
+### Passo 3: Configurar e Executar o `sms-notifier`
 
-1.  **Navegue até o diretório** deste projeto:
-    ```sh
-    cd ../sms-notifier
-    ```
+Abra um segundo terminal.
 
-2.  **Configure as variáveis de ambiente**:
+1.  **Navegue até o diretório** deste projeto (`sms-notifier`).
+2.  **Exporte as variáveis de ambiente obrigatórias**:
     ```sh
-    export WATCHER_URL="http://localhost:8080"
+    # URL para encontrar o serviço notification-watcher
+    export WATCHER_URL="http://localhost:8081"
+
+    # String de conexão JDBC para o seu banco de dados
+    export DATABASE_URL="jdbc:postgresql://localhost:5432/sms_notifier_db?user=admin&password=secret"
+
+    # Credenciais para a API de envio de SMS
+    export SMS_API_URL="https://api.sms_provider.com/send"
+    export SMS_API_TOKEN="seu_token_de_api"
+    export SMS_API_USER="seu_usuario_de_api"
+
+    # Dados de contato para mapear wabaId -> telefone
     export MOCK_CUSTOMER_DATA='{"waba_id_1": "+5511999998888", "waba_id_2": "+5521888887777"}'
-    ```
 
-3.  **Instale as dependências**:
-    ```sh
-    lein deps
+    # Porta onde o serviço sms-notifier irá rodar
+    export PORT="8080"
     ```
-
-4.  **Execute o serviço**:
+3.  **Execute o serviço**:
     ```sh
     lein run
     ```
 
-### O que Esperar
+Você verá os logs no console do `sms-notifier` indicando as consultas ao `notification-watcher`, o envio de SMS e o salvamento das chaves de notificação no banco de dados.
 
-Você verá logs no console do `sms-notifier` indicando as consultas ao `notification-watcher` e a simulação do envio de SMS para os contatos correspondentes.
+## Deploy
+
+O serviço inclui um `Dockerfile` para facilitar o deploy em contêineres. Para instruções detalhadas sobre como fazer o deploy na plataforma [Render](https://render.com/), consulte nosso guia:
+
+  * **[Guia de Deploy no Render (`DEPLOY.md`)](https://www.google.com/search?q=./doc/DEPLOY.md)**
