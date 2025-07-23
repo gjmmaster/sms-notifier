@@ -7,10 +7,9 @@ on:
     # IMPORTANTE: O agendador do GitHub usa o fuso horário UTC.
     # 11:00 BRT (UTC-3) = 14:00 UTC
     # 16:00 BRT (UTC-3) = 19:00 UTC
-    - cron: '0 14 * * *' # Executa diariamente às 14:00 UTC (11:00 BRT)
-    - cron: '0 19 * * *' # Executa diariamente às 19:00 UTC (16:00 BRT)
+    - cron: '0 14 * * *'
+    - cron: '0 19 * * *'
   
-  # A linha abaixo permite que você execute este workflow manualmente pela aba "Actions" do GitHub
   workflow_dispatch:
 
 jobs:
@@ -18,4 +17,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Send HTTP Request to Render App
-        run: curl --silent --fail ${{ secrets.RENDER_URL }}
+        run: curl --verbose ${{ secrets.RENDER_URL }} # Linha modificada para depuração
