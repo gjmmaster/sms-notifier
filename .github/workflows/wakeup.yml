@@ -1,20 +1,32 @@
-# .github/workflows/wakeup.yml
-
-name: Wake Up Render Service
+name: Trigger Render Redeploy
 
 on:
   schedule:
-    # IMPORTANTE: O agendador do GitHub usa o fuso horário UTC.
     # 11:00 BRT (UTC-3) = 14:00 UTC
     # 16:00 BRT (UTC-3) = 19:00 UTC
     - cron: '0 14 * * *'
     - cron: '0 19 * * *'
-  
+
   workflow_dispatch:
 
 jobs:
-  wake-up:
+  redeploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Send HTTP Request to Render App
-        run: curl --verbose ${{ secrets.RENDER_URL }} # Linha modificada para depuração
+      - name: Call Render Deploy Hook
+        run: |
+          echo "🚀 Triggering a new deploy on Render..."
+          response=$(curl -s -w "%{http_code}" -X GET "${{ secrets.RENDER_DEPLOY_HOOK_URL }}")
+          http_code=${response: -3}
+          body=${response::-3}
+
+          echo "Response Body: $body"
+          echo "HTTP Status Code: $http_code"
+
+          if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+            echo "✅ Deploy hook successfully triggered on Render."
+            exit 0
+          else
+            echo "❌ Failed to trigger Render deploy hook."
+            exit 1
+          fi
