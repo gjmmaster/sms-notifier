@@ -1,8 +1,8 @@
-name: Manter Repositório Ativo (TESTE)
+name: Manter Repositório Ativo
 
 on:
   schedule:
-    - cron: '0 0 * * 0'  # Todo domingo à meia-noite UTC
+    - cron: '0 0 * * 0'
   workflow_dispatch:
 
 permissions:
@@ -14,31 +14,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Teste completo do keepalive (sempre cria commit)
+      - name: Verificar e criar keepalive
         run: |
           echo "🔍 Verificando última atividade do repositório..."
           
-          # Obter data do último commit
           LAST_COMMIT_DATE=$(git log -1 --format=%ct)
           CURRENT_DATE=$(date +%s)
           DAYS_DIFF=$(( (CURRENT_DATE - LAST_COMMIT_DATE) / 86400 ))
           
           echo "Último commit há $DAYS_DIFF dias"
           
-          # PARA TESTE: sempre criar commit (remover depois)
-          echo "🧪 MODO TESTE: Forçando criação de keepalive para validar funcionamento..."
-          
-          # Configurar git
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          
-          # Criar arquivo keepalive com timestamp único
-          echo "Last keepalive: $(date)" > .github/keepalive
-          echo "Test run: $(date +%s)" >> .github/keepalive
-          
-          # Commit e push
-          git add .github/keepalive
-          git commit -m "chore: keepalive automático (TESTE) - $(date)"
-          git push
-          
-          echo "✅ Keepalive de teste criado com sucesso!"
+          # Só criar commit se inativo por mais de 45 dias
+          if [ $DAYS_DIFF -gt 45 ]; then
+            echo "📝 Repositório inativo há mais de 45 dias. Criando keepalive..."
+            
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            
+            echo "Last keepalive: $(date)" > .github/keepalive
+            
+            git add .github/keepalive
+            git commit -m "chore: keepalive automático para manter repositório ativo"
+            git push
+            
+            echo "✅ Keepalive criado com sucesso!"
+          else
+            echo "✅ Repositório ainda ativo. Nenhuma ação necessária."
+          fi
