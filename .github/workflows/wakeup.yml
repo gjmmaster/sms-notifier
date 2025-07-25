@@ -1,12 +1,11 @@
-name: Trigger Render Redeploy
+name: Trigger Render Redeploy - Test Mode
 
 on:
   schedule:
-    # 11:00 BRT (UTC-3) = 14:00 UTC
-    # 16:00 BRT (UTC-3) = 19:00 UTC
-    - cron: '0 14 * * *'
-    - cron: '0 19 * * *'
-
+    # Executa a cada 5 minutos (intervalo mínimo permitido)
+    - cron: '*/5 * * * *'
+  
+  # Mantém a opção de execução manual
   workflow_dispatch:
 
 jobs:
@@ -15,18 +14,26 @@ jobs:
     steps:
       - name: Call Render Deploy Hook
         run: |
-          echo "🚀 Triggering a new deploy on Render..."
-          response=$(curl -s -w "%{http_code}" -X GET "${{ secrets.RENDER_DEPLOY_HOOK_URL }}")
+          echo "🚀 Triggering a new deploy on Render (Test Mode - Every 5min)..."
+          response=$(curl -s -w "%{http_code}" -X POST \
+            -H "Content-Type: application/json" \
+            "${{ secrets.RENDER_DEPLOY_HOOK_URL }}")
           http_code=${response: -3}
           body=${response::-3}
 
           echo "Response Body: $body"
           echo "HTTP Status Code: $http_code"
+          echo "Executed at: $(date)"
 
           if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
             echo "✅ Deploy hook successfully triggered on Render."
-            exit 0
           else
             echo "❌ Failed to trigger Render deploy hook."
             exit 1
           fi
+
+      # Opcional: ping para garantir que o serviço acorde
+      - name: Wake up service
+        run: |
+          echo "🏓 Pinging service to ensure it's awake..."
+          curl -s -m 10 "${{ secrets.SERVICE_URL }}" || echo "Service may still be starting"
