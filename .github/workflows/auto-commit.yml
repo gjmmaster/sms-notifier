@@ -2,25 +2,46 @@ name: Manter Repositório Ativo
 
 on:
   schedule:
-    # Todo domingo à meia-noite UTC (21:00 BRT no horário de verão, 20:00 BRT no horário padrão)
-    - cron: '0 0 * * 0'
-  
-  # Permite execução manual para testes
+    - cron: '0 0 * * 0'  # Todo domingo à meia-noite UTC
   workflow_dispatch:
 
 permissions:
-  actions: write
   contents: write
 
 jobs:
   keepalive:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repositório
-        uses: actions/checkout@v4
-        
-      - name: Executar keepalive
-        uses: gautamkrishnar/keepalive-workflow@v2
-        with:
-          time_elapsed: '45'  # Aciona se inativo por 45 dias
-          auto_commit_message: 'chore: keepalive automático para manter repositório ativo'
+      - uses: actions/checkout@v4
+      
+      - name: Verificar e criar keepalive
+        run: |
+          echo "🔍 Verificando última atividade do repositório..."
+          
+          # Obter data do último commit
+          LAST_COMMIT_DATE=$(git log -1 --format=%ct)
+          CURRENT_DATE=$(date +%s)
+          DAYS_DIFF=$(( (CURRENT_DATE - LAST_COMMIT_DATE) / 86400 ))
+          
+          echo "Último commit há $DAYS_DIFF dias"
+          
+          # Se inativo por mais de 45 dias, criar commit keepalive
+          if [ $DAYS_DIFF -gt 45 ]; then
+            echo "📝 Repositório inativo há mais de 45 dias. Criando keepalive..."
+            
+            # Configurar git
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            
+            # Criar arquivo keepalive
+            echo "Last keepalive: $(date)" > .github/keepalive
+            
+            # Commit e push
+            git add .github/keepalive
+            git commit -m "chore: keepalive automático para manter repositório ativo"
+            git push
+            
+            echo "✅ Keepalive criado com sucesso!"
+          else
+            echo "✅ Repositório ainda ativo. Nenhuma ação necessária."
+          fi
