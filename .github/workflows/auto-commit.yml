@@ -2,7 +2,11 @@ name: Manter Repositório Ativo
 
 on:
   schedule:
-    - cron: '0 0 * * 0'  # Toda domingo à meia-noite UTC
+    # Todo domingo à meia-noite UTC (21:00 BRT no horário de verão, 20:00 BRT no horário padrão)
+    - cron: '0 0 * * 0'
+  
+  # Permite execução manual para testes
+  workflow_dispatch:
 
 permissions:
   actions: write
@@ -12,7 +16,11 @@ jobs:
   keepalive:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: gautamkrishnar/keepalive-workflow@v2
+      - name: Checkout repositório
+        uses: actions/checkout@v4
+        
+      - name: Executar keepalive
+        uses: gautamkrishnar/keepalive-workflow@v2
         with:
           time_elapsed: '45'  # Aciona se inativo por 45 dias
+          auto_commit_message: 'chore: keepalive automático para manter repositório ativo'
