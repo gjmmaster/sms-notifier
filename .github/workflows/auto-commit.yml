@@ -1,4 +1,4 @@
-name: Manter Repositório Ativo
+name: Manter Repositório Ativo (TESTE)
 
 on:
   schedule:
@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Verificar e criar keepalive
+      - name: Teste completo do keepalive (sempre cria commit)
         run: |
           echo "🔍 Verificando última atividade do repositório..."
           
@@ -25,23 +25,20 @@ jobs:
           
           echo "Último commit há $DAYS_DIFF dias"
           
-          # Se inativo por mais de 45 dias, criar commit keepalive
-          if [ $DAYS_DIFF -gt 45 ]; then
-            echo "📝 Repositório inativo há mais de 45 dias. Criando keepalive..."
-            
-            # Configurar git
-            git config --local user.email "action@github.com"
-            git config --local user.name "GitHub Action"
-            
-            # Criar arquivo keepalive
-            echo "Last keepalive: $(date)" > .github/keepalive
-            
-            # Commit e push
-            git add .github/keepalive
-            git commit -m "chore: keepalive automático para manter repositório ativo"
-            git push
-            
-            echo "✅ Keepalive criado com sucesso!"
-          else
-            echo "✅ Repositório ainda ativo. Nenhuma ação necessária."
-          fi
+          # PARA TESTE: sempre criar commit (remover depois)
+          echo "🧪 MODO TESTE: Forçando criação de keepalive para validar funcionamento..."
+          
+          # Configurar git
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          # Criar arquivo keepalive com timestamp único
+          echo "Last keepalive: $(date)" > .github/keepalive
+          echo "Test run: $(date +%s)" >> .github/keepalive
+          
+          # Commit e push
+          git add .github/keepalive
+          git commit -m "chore: keepalive automático (TESTE) - $(date)"
+          git push
+          
+          echo "✅ Keepalive de teste criado com sucesso!"
