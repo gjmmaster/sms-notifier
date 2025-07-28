@@ -106,9 +106,13 @@
     (if (@sent-notifications-cache notification-key)
       (println (str "Notificação para " notification-key " já processada (cache). Ignorando."))
       (if-let [phone (get-contact-phone waba-id)]
-        (let [message (str "Alerta de Mudança de Categoria de Template!\n"
-                           "  - WABA ID: " waba-id "\n" "  - Template: " (:elementName template) " (" template-id ")\n"
-                           "  - Categoria Anterior: " (:oldCategory template) "\n" "  - Nova Categoria: " new-category)
+        (let [message (str "Alerta de Mudança de Categoria de Template!\n\n"
+                   "CANAL ATIVO: " waba-id "\n\n"
+                   "    Nome do Template: " (:elementName template) "\n"
+                   "    Categoria Anterior: " (:oldCategory template) "\n"
+                   "    Nova Categoria: " new-category "\n\n\n"
+                   "Atenciosamente,\n\n"
+                   "JM MASTER GROUP.")
               response (send-sms-via-api phone message template-id)]
           (if (= (:status response) 200)
             (do
