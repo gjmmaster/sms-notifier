@@ -1,8 +1,8 @@
 ;; src/sms_notifier/protocols.clj
 (ns sms-notifier.protocols
-  (:doc "Define os protocolos para os canais de notificação do sistema.
-         Qualquer novo canal (ex: Slack, Telegram) deve implementar o protocolo
-         NotificationChannel para se integrar ao fluxo de trabalho principal."))
+  "Define os protocolos para os canais de notificação do sistema.
+  Qualquer novo canal (ex: Slack, Telegram) deve implementar o protocolo
+  NotificationChannel para se integrar ao fluxo de trabalho principal.")
 
 (defprotocol NotificationChannel
   "Define um contrato para um canal de notificação.
