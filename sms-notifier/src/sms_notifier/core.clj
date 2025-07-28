@@ -117,10 +117,13 @@
               sms-message {:body (:sms message-details) :template-id (:template-id message-details)}
               email-message {:subject (:subject (:email message-details)) :body (:body (:email message-details)) :template-id (:template-id message-details)}]
           (doseq [channel active-channels]
-            (let [response (p/send! channel contact-info (if (= (type channel) sms_notifier.channels.sms.SmsChannel) sms-message email-message))]
-              (if (= (:status response) 200)
-                (println (str "Notificação enviada com sucesso via " (type channel) "."))
-                (println (str "Falha ao enviar notificação via " (type channel) ". Resposta: " (:body response))))))
+            (try
+              (let [response (p/send! channel contact-info (if (= (type channel) sms_notifier.channels.sms.SmsChannel) sms-message email-message))]
+                (if (= (:status response) 200)
+                  (println (str "Notificação enviada com sucesso via " (type channel) "."))
+                  (println (str "Falha ao enviar notificação via " (type channel) ". Resposta: " (:body response)))))
+              (catch Exception e
+                (println (str "Erro ao enviar notificação via " (type channel) ": " (.getMessage e))))))
           (try
             (with-db-circuit-breaker "save-key"
               (jdbc/with-db-connection [db-conn db-spec]
