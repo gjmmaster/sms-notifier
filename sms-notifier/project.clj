@@ -8,9 +8,10 @@
                  [cheshire "5.11.0"]
                  [environ "1.2.0"]
                  [http-kit "2.5.3"]
-                 ;; --- DEPENDÊNCIAS NOVAS ADICIONADAS AQUI ---
                  [org.clojure/java.jdbc "0.7.12"]
-                 [org.postgresql/postgresql "42.6.0"]]
+                 [org.postgresql/postgresql "42.6.0"]
+                 ;; --- NOVA DEPENDÊNCIA PARA EMAIL ---
+                 [com.draines/postal "2.0.5"]]
   :main ^:skip-aot sms-notifier.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all
