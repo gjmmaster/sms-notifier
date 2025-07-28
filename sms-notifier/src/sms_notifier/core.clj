@@ -124,6 +124,7 @@
 
 (defn fetch-and-process-templates []
   (if-let [watcher-url (env :watcher-url)]
+    ;; then (if watcher-url is not nil)
     (try
       (println (str "Consultando " watcher-url "/changed-templates..."))
       (let [response (client/get (str watcher-url "/changed-templates") {:as :json, :throw-exceptions false, :conn-timeout 5000, :socket-timeout 5000})
@@ -135,6 +136,7 @@
           (println "Nenhum template alterado encontrado.")))
       (catch Exception e
         (println (str "Erro ao conectar com o notification-watcher: " (.getMessage e)))))
+    ;; else (if watcher-url is nil)
     (println "ALERTA: WATCHER_URL não configurada.")))
 
 (defn start-notifier-loop! []
