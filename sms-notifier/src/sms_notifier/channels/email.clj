@@ -6,28 +6,26 @@
             [environ.core :refer [env]]))
 
 (defn- send-email-via-api [to-email to-name subject body external-id]
-  (if-let [email-api-url (env :email-api-url)]
+  (if-let [email-api-url (env :email-api-url "https://www.apiswagger.com.br/api/email/send_single_email_to_single_or_multiple_recipients")]
     (if-let [email-api-token (env :email-api-token)]
-      (if-let [from-email (env :email-from-address)]
-        (let [payload {:user       (env :email-api-user "default_user")
-                       :from_email from-email
-                       :from_name  (env :email-from-name "JM Master Contact")
-                       :contact    [{:to_email   to-email
-                                     :to_name    to-name
-                                     :subject    subject
-                                     :externalid external-id
-                                     :body       body}]}
-              response (try
-                         (client/post (str email-api-url "?token=" email-api-token)
-                                      {:body         (json/generate-string payload)
-                                       :content-type :json
-                                       :throw-exceptions false
-                                       :conn-timeout 300000
-                                       :socket-timeout 300000})
-                         (catch Exception e
-                           {:status 500 :body (str "Erro de conexão com API de Email: " (.getMessage e))}))]
-          response)
-        {:status 500 :body "EMAIL_FROM_ADDRESS não configurada."})
+      (let [payload {:user       (env :email-api-user)
+                     :from_email "noreplay@jmmaster.com"
+                     :from_name  "JM Master Group"
+                     :contact    [{:to_email   to-email
+                                   :to_name    to-name
+                                   :subject    subject
+                                   :externalid external-id}]
+                     :body       body}
+            response (try
+                       (client/post (str email-api-url "?token=" email-api-token)
+                                    {:body         (json/generate-string payload)
+                                     :content-type :json
+                                     :throw-exceptions false
+                                     :conn-timeout 300000
+                                     :socket-timeout 300000})
+                       (catch Exception e
+                         {:status 500 :body (str "Erro de conexão com API de Email: " (.getMessage e))}))]
+        response)
       {:status 500 :body "EMAIL_API_TOKEN não configurada."})
     {:status 500 :body "EMAIL_API_URL não configurada."}))
 
