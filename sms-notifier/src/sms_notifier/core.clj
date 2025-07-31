@@ -105,7 +105,9 @@
                          "<p>Atenciosamente,<br>JM MASTER GROUP.</p>")}
    :template-id (:id template)})
 
-(defn process-notification [template]
+(def SPAM_LIMIT 5)
+
+(defn process-notification [template spam-counter]
   (let [waba-id (:wabaId template)
         template-id (:id template)
         new-category (:category template)
@@ -113,23 +115,28 @@
     (if (@sent-notifications-cache notification-key)
       (println (str "Notificação para " notification-key " já processada (cache). Ignorando."))
       (if-let [contact-info (get-contact-info waba-id)]
-        (let [message-details (build-message-details template)
-              sms-message {:body (:sms message-details) :template-id (:template-id message-details)}
-              email-message {:subject (:subject (:email message-details)) :body (:body (:email message-details)) :template-id (:template-id message-details)}]
-          (doseq [channel active-channels]
-            (try
-              (let [response (p/send! channel contact-info (if (= (type channel) sms_notifier.channels.sms.SmsChannel) sms-message email-message))]
-                (if (= (:status response) 200)
-                  (println (str "Notificação enviada com sucesso via " (type channel) "."))
-                  (println (str "Falha ao enviar notificação via " (type channel) ". Resposta: " (:body response)))))
-              (catch Exception e
-                (println (str "Erro ao enviar notificação via " (type channel) ": " (.getMessage e))))))
-          (try
-            (with-db-circuit-breaker "save-key"
-              (jdbc/with-db-connection [db-conn db-spec]
-                (save-notification-key! db-conn notification-key)))
-            (catch Exception e
-              (println (str "Falha ao salvar chave no DB (Circuito Aberto?): " (.getMessage e))))))
+        (let [current-count (get @spam-counter contact-info 0)]
+          (if (>= current-count SPAM_LIMIT)
+            (println (str "ALERTA DE SPAM: Limite de " SPAM_LIMIT " mensagens para " contact-info " atingido. Notificação para " notification-key " bloqueada."))
+            (do
+              (swap! spam-counter update contact-info (fn [c] (inc (or c 0))))
+              (let [message-details (build-message-details template)
+                    sms-message {:body (:sms message-details) :template-id (:template-id message-details)}
+                    email-message {:subject (:subject (:email message-details)) :body (:body (:email message-details)) :template-id (:template-id message-details)}]
+                (doseq [channel active-channels]
+                  (try
+                    (let [response (p/send! channel contact-info (if (= (type channel) sms_notifier.channels.sms.SmsChannel) sms-message email-message))]
+                      (if (= (:status response) 200)
+                        (println (str "Notificação enviada com sucesso via " (type channel) "."))
+                        (println (str "Falha ao enviar notificação via " (type channel) ". Resposta: " (:body response)))))
+                    (catch Exception e
+                      (println (str "Erro ao enviar notificação via " (type channel) ": " (.getMessage e))))))
+                (try
+                  (with-db-circuit-breaker "save-key"
+                    (jdbc/with-db-connection [db-conn db-spec]
+                      (save-notification-key! db-conn notification-key)))
+                  (catch Exception e
+                    (println (str "Falha ao salvar chave no DB (Circuito Aberto?): " (.getMessage e)))))))))
         (println (str "Aviso: Contato não encontrado para o WABA ID: " waba-id))))))
 
 (defn fetch-and-process-templates []
@@ -137,11 +144,12 @@
     (try
       (println (str "Consultando " watcher-url "/changed-templates..."))
       (let [response (client/get (str watcher-url "/changed-templates") {:as :json, :throw-exceptions false, :conn-timeout 5000, :socket-timeout 5000})
-            templates (get-in response [:body])]
+            templates (get-in response [:body])
+            spam-counter (atom {})]
         (if (and (= (:status response) 200) (seq templates))
           (do
             (println (str "Recebidos " (count templates) " templates alterados."))
-            (doseq [template templates] (process-notification template)))
+            (doseq [template templates] (process-notification template spam-counter)))
           (println "Nenhum template alterado encontrado.")))
       (catch Exception e
         (println (str "Erro ao conectar com o notification-watcher: " (.getMessage e)))))
