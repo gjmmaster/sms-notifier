@@ -70,3 +70,29 @@
                                (fn [req] {:status 200 :headers {} :body "[]"}) }
               (fetch-and-process-templates))
             (is (empty? @processed-notifications))))))))
+
+(deftest spam-protection-test
+  (testing "Spam protection"
+    (let [contact-info {:phone "+5511999998888" :email "test@test.com"}
+          spam-counter (atom {})
+          template-generator (fn [i] {:wabaId "waba_id_1"
+                                      :id (str "template_" i)
+                                      :elementName (str "template_element_" i)
+                                      :category "NEW_CATEGORY"
+                                      :oldCategory "OLD_CATEGORY"})]
+      (with-redefs [sent-notifications-cache (atom #{})
+                    get-contact-info (fn [waba-id] contact-info)
+                    p/send! (fn [channel contact message-details] {:status 200 :body ""})
+                    db-spec nil] ; Disable DB interaction for this test
+
+        ; Send 5 messages, which should be allowed
+        (doseq [i (range 5)]
+          (process-notification (template-generator i) spam-counter)
+          (is (= (get @spam-counter contact-info) (inc i))))
+
+        ; The 6th message should be blocked
+        (let [send-count-before (atom 0)]
+          (with-redefs [p/send! (fn [& args] (swap! send-count-before inc))]
+            (process-notification (template-generator 6) spam-counter)
+            (is (zero? @send-count-before))
+            (is (= (get @spam-counter contact-info) 5))))))))
