@@ -107,6 +107,14 @@
 
 (def SPAM_LIMIT 5)
 
+(defn- persist-notification-key! [notification-key]
+  (try
+    (with-db-circuit-breaker "save-key"
+      (jdbc/with-db-connection [db-conn db-spec]
+        (save-notification-key! db-conn notification-key)))
+    (catch Exception e
+      (println (str "Falha ao salvar chave no DB (Circuito Aberto?): " (.getMessage e))))))
+
 (defn process-notification [template spam-counter]
   (let [waba-id (:wabaId template)
         template-id (:id template)
@@ -131,12 +139,7 @@
                         (println (str "Falha ao enviar notificação via " (type channel) ". Resposta: " (:body response)))))
                     (catch Exception e
                       (println (str "Erro ao enviar notificação via " (type channel) ": " (.getMessage e))))))
-                (try
-                  (with-db-circuit-breaker "save-key"
-                    (jdbc/with-db-connection [db-conn db-spec]
-                      (save-notification-key! db-conn notification-key)))
-                  (catch Exception e
-                    (println (str "Falha ao salvar chave no DB (Circuito Aberto?): " (.getMessage e)))))))))
+                (persist-notification-key! notification-key)))))
         (println (str "Aviso: Contato não encontrado para o WABA ID: " waba-id))))))
 
 (defn fetch-and-process-templates []

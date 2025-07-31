@@ -1,108 +1,84 @@
-Com certeza. Preparei um relatório técnico completo para o **Caminho do Protótipo Integrado**.
+# Relatório Técnico: Serviço de Notificação Multicanal (SNCT)
 
-Este documento foi modelado a partir do `SNCT_Relatorio_Tecnico_Onboarding_v3.md` para manter a consistência, mas foi totalmente adaptado para descrever a arquitetura e os objetivos específicos do protótipo que discutimos.
+**ID do Documento:** ARQ-SNCT-IMPL-20250731-v1.2
+**Data:** 31 de Julho de 2025
+**Versão:** 1.2 (Foco na Arquitetura Multicanal com SMS e Email)
+**Autor:** Jules, Arquiteto de Sistemas
 
------
-
-# Relatório Técnico: Serviço de Notificação por SMS (SNCT)
-
-**ID do Documento:** ARQ-SNCT-IMPL-20250721-v1.1
-**Data:** 21 de Julho de 2025
-**Versão:** 1.1 (Foco na `Implementação V1 com Persistência`)
-**Autor:** Gemini, Arquiteto de Sistemas
-
-**Propósito deste Documento:** Este documento descreve a arquitetura e o funcionamento do serviço **`sms-notifier`**. Originalmente um protótipo, o serviço evoluiu para uma implementação robusta que inclui persistência de dados e integração com uma API de SMS real. O objetivo deste documento é servir como um guia técnico completo para a versão atual do serviço.
+**Propósito deste Documento:** Este documento descreve a arquitetura e o funcionamento do serviço de notificação do SNCT. O serviço evoluiu de um protótipo focado em SMS para uma implementação robusta e multicanal que, por padrão, envia notificações via **SMS e Email**.
 
 -----
 
 ## 1\. Resumo Executivo
 
-O serviço `sms-notifier` é um componente essencial do Sistema de Notificação de Mudança de Categoria de Templates (SNCT). Ele opera em conjunto com o `notification-watcher` para entregar notificações proativas aos clientes via SMS quando a Meta (anteriormente Facebook) reclassifica seus templates de mensagem do WhatsApp.
+O serviço de notificação é um componente essencial do Sistema de Notificação de Mudança de Categoria de Templates (SNCT). Ele opera em conjunto com o `notification-watcher` para entregar notificações proativas aos clientes quando a Meta reclassifica seus templates de mensagem do WhatsApp.
 
 A arquitetura atual é composta por:
 
-  * **`notification-watcher`**: Serviço existente que monitora a API da Gupshup, detecta mudanças de categoria e as expõe através de um endpoint.
-  * **`sms-notifier`**: O serviço documentado aqui. Ele consome os dados do `notification-watcher`, busca informações de contato de uma fonte de dados estática (configurada via variáveis de ambiente) e envia notificações por SMS através de uma API externa.
+  * **`notification-watcher`**: Serviço existente que monitora e detecta mudanças de categoria.
+  * **Serviço de Notificação (`sms-notifier`)**: O serviço documentado aqui. Ele consome os dados do `notification-watcher`, busca informações de contato multicanal (telefone, email) e envia notificações através de APIs externas de **SMS e Email**.
 
-A principal evolução desde a fase de protótipo é a introdução de **persistência de dados** através de um banco de dados relacional. Isso garante que as notificações sejam processadas de forma **idempotente**, mesmo que o serviço seja reiniciado, prevenindo o envio de alertas duplicados.
-
-Esta abordagem move o sistema de uma prova de conceito para uma solução pronta para produção.
+A principal evolução é a **arquitetura de canais**, que permite ao serviço enviar notificações por múltiplos meios de forma extensível, mantendo a **idempotência** através de um banco de dados.
 
 -----
 
 ## 2\. Introdução e Escopo do Problema
 
-O problema central que o `sms-notifier` resolve é a falta de notificação proativa para clientes quando a Meta reclassifica seus templates de mensagens do WhatsApp. Uma mudança de categoria (ex: de "UTILITY" para "MARKETING") pode ter implicações diretas de custo e conformidade.
+O problema central resolvido é a falta de notificação proativa para clientes sobre mudanças de categoria de templates, que podem ter implicações de custo.
 
 O escopo desta implementação é:
 
-1.  Consumir de forma confiável os dados de mudança de template fornecidos pelo `notification-watcher`.
-2.  Mapear um identificador de conta (`wabaId`) para um contato telefônico de cliente usando uma fonte de dados estática.
-3.  Enviar uma notificação por SMS para o contato correto através de uma API de mensagens externa.
-4.  **Garantir a idempotência** do envio de notificações, utilizando um banco de dados para persistir o estado das notificações já enviadas. Isso previne o envio de múltiplos alertas para a mesma mudança de categoria.
+1.  Consumir de forma confiável os dados do `notification-watcher`.
+2.  Mapear um `wabaId` a um **objeto de contato** contendo múltiplas informações (telefone, email).
+3.  Enviar notificações para o contato correto através dos canais ativos (por padrão, **SMS e Email**).
+4.  Garantir a **idempotência** do envio utilizando um banco de dados.
 
 -----
 
 ## 3\. Arquitetura Detalhada da Implementação
 
-O sistema é composto por dois microsserviços, um banco de dados para persistência e uma API de SMS externa.
+O sistema é composto por um microsserviço de monitoramento, um microsserviço de notificação, um banco de dados e múltiplas APIs externas.
 
 ### 3.1. Componentes Principais
 
-**3.1.1. `notification-watcher` (Serviço Dependência)**
-
-  * **Responsabilidades:**
-      * Monitora a API da Gupshup (em modo real ou mock).
-      * Detecta mudanças de categoria.
-      * Expõe um endpoint `GET /changed-templates` com a lista de templates alterados.
-  * **Estado:** Sem estado persistente (`stateless`).
-
-**3.1.2. `sms-notifier` (Serviço Principal)**
-
-  * **Responsabilidades:**
-      * Periodicamente (a cada 4 minutos), consulta o endpoint `/changed-templates` do `notification-watcher`.
-      * Para cada template alterado recebido:
-          * Constrói uma chave de notificação única (ex: `template-id_nova-categoria`).
-          * **Verifica no cache em memória** se a chave já foi processada recentemente.
-          * Se não estiver no cache, busca o contato do cliente (`telefone`) a partir de uma configuração estática (`MOCK_CUSTOMER_DATA`).
-          * Se um contato é encontrado, formata a mensagem de alerta e a envia via integração com a **API de SMS externa**.
-          * Se o envio for bem-sucedido, **salva a chave de notificação no banco de dados** para garantir idempotência em futuras execuções.
-  * **Estado:** Mantém um cache em memória (`atom`) das chaves de notificação carregadas do banco de dados na inicialização. O estado autoritativo é o banco de dados.
+*   **`notification-watcher`**: Sem alterações. Monitora e expõe as mudanças.
+*   **Serviço de Notificação (`sms-notifier`)**:
+    *   **Responsabilidades:**
+        *   Periodicamente, consulta o `notification-watcher`.
+        *   Para cada mudança, busca o objeto de contato do cliente.
+        *   Itera sobre os canais de notificação ativos (ex: SMS, Email).
+        *   Para cada canal, formata e envia a mensagem através da API externa correspondente.
+        *   Salva a chave da notificação no banco de dados para garantir idempotência.
 
 ### 3.2. Diagrama da Arquitetura da Implementação
 
 ```
-+--------------------------------+      +--------------------------------+      +-----------------------+
-|      API Provedor              |      |      notification-watcher      |      |      sms-notifier     |
-|      (ex: Gupshup)             |<---->|  (Monitora API Gupshup)        |<---->|   (Processa e Envia)  |
-+--------------------------------+      +--------------------------------+      +-----------------------+
-                                                                                       |
-                                                                                       |
-                                              +----------------------------------------+
-                                              |
-                                              v
-+--------------------------------+      +--------------------------------+
-|      API de SMS Externa        |      |      Banco de Dados            |
-|      (Envia Notificações)      |<---->|      (PostgreSQL)              |
-+--------------------------------+      +--------------------------------+
-                                        (Armazena chaves de idempotência)
++------------------------+      +--------------------------+      +-------------------------+
+|      API Provedor      |      |   notification-watcher   |      |   Serviço de Notificação|
+|      (ex: Gupshup)     |<---->| (Monitora API Gupshup)   |<---->|   (Processa e Envia)    |
++------------------------+      +--------------------------+      +-------------------------+
+                                                                             |
+                                              +------------------------------+------------------------------+
+                                              |                                                             |
+                                              v                                                             v
++------------------------+      +--------------------------+      +-------------------------+      +-------------------------+
+|   API de SMS Externa   |<---->|                          |<---->|   API de Email Externa  |      |      Banco de Dados     |
+| (Envia Notificações)   |      | (Armazena chaves         |      | (Envia Notificações)    |      |      (PostgreSQL)       |
++------------------------+      |  de idempotência)        |      +-------------------------+      +-------------------------+
+                              +--------------------------+
+
 ```
 
 ### 3.3. Fluxo de Dados Detalhado
 
-1.  **Inicialização:**
-    a.  O `sms-notifier` é iniciado.
-    b.  Ele se conecta ao banco de dados e carrega todas as chaves de notificação da tabela `sent_notifications` para um cache em memória (`atom`), garantindo uma checagem de idempotência rápida.
-
-2.  **Ciclo de Processamento (executado a cada 4 minutos):**
-    a.  O `sms-notifier` faz uma chamada `GET` para `http://<watcher-url>/changed-templates`.
-    b.  Ele recebe uma lista JSON de templates alterados (ou uma lista vazia).
-    c.  Para cada template na lista:
-        i.  Cria uma chave única para a notificação (ex: `template-id_nova-categoria`).
-        ii. **Verificação de Idempotência:** Ele primeiro consulta seu cache em memória. Se a chave for encontrada, a notificação é ignorada e o processo segue para o próximo template.
-        iii. **Busca de Contato:** Se a chave é nova, ele busca o telefone de contato na variável de ambiente `MOCK_CUSTOMER_DATA` usando o `wabaId` do template.
-        iv. **Envio de SMS:** Se um telefone é encontrado, o serviço formata a mensagem de alerta e faz uma chamada `POST` para a API de SMS externa.
-        v.  **Persistência:** Se o envio do SMS for bem-sucedido (status `200 OK`), o serviço insere a chave de notificação na tabela `sent_notifications` do banco de dados e a adiciona ao cache em memória. Isso previne envios duplicados no futuro.
+1.  **Inicialização:** O serviço carrega as chaves de idempotência do banco de dados para um cache em memória.
+2.  **Ciclo de Processamento:**
+    a.  Consulta o `notification-watcher`.
+    b.  Para cada template alterado:
+        i.  Cria uma chave de notificação única e verifica o cache.
+        ii. **Busca de Contato:** Busca o **objeto de contato** completo (`{phone, email, ...}`).
+        iii. **Envio Multicanal:** Se o contato for encontrado, o serviço itera sobre os canais ativos. Para cada um (SMS, Email), ele invoca a API externa correspondente com a mensagem apropriada.
+        iv. **Persistência:** Se o ciclo de envio for concluído, a chave é salva no banco de dados.
 
 -----
 
@@ -110,10 +86,10 @@ O sistema é composto por dois microsserviços, um banco de dados para persistê
 
 | Componente                | Tecnologia/Framework | Detalhes                                                              |
 | ------------------------- | -------------------- | --------------------------------------------------------------------- |
-| `notification-watcher`    | Clojure 1.11+        | `http-kit` (servidor), `clj-http` (cliente), `cheshire` (JSON)        |
+| `notification-watcher`    | Clojure 1.11+        | `http-kit`, `clj-http`, `cheshire`                                    |
 | `sms-notifier`            | Clojure 1.11+        | `clj-http`, `cheshire`, `environ`, `clojure.java.jdbc`                |
-| **Banco de Dados**        | PostgreSQL (ou similar) | Utilizado para persistir chaves de idempotência.                      |
-| **Infraestrutura Comum**  | Leiningen, Java (JDK 11+), Docker | Ferramentas de build, runtime e orquestração.                 |
+| **Banco de Dados**        | PostgreSQL           | Persistência de chaves de idempotência.                               |
+| **Infraestrutura Comum**  | Leiningen, Java, Docker | Build, runtime e orquestração.                                        |
 
 -----
 
@@ -122,112 +98,59 @@ O sistema é composto por dois microsserviços, um banco de dados para persistê
 **Pré-requisitos:** Java (JDK 11+), Leiningen, acesso a um banco de dados PostgreSQL.
 
 **Passo 1: Configurar Variáveis de Ambiente**
-A configuração do `sms-notifier` é feita exclusivamente por variáveis de ambiente.
 
 ```bash
-# URL para encontrar o serviço notification-watcher
-WATCHER_URL="http://localhost:8081" # Porta padrão do watcher
-
-# String JSON contendo os dados de contato dos clientes
-MOCK_CUSTOMER_DATA='{"waba_id_1": "+5511999998888", "waba_id_2": "+5521888887777"}'
-
-# Configuração do Banco de Dados para persistência
-DATABASE_URL="jdbc:postgresql://localhost:5432/sms_notifier_db?user=admin&password=secret"
-
-# Credenciais para a API de envio de SMS
-SMS_API_URL="https://api.sms_provider.com/send"
-SMS_API_TOKEN="seu_token_de_api"
-SMS_API_USER="seu_usuario_de_api"
-
-# Porta onde o serviço sms-notifier irá rodar
+# --- Configurações Gerais ---
+WATCHER_URL="http://localhost:8081"
+DATABASE_URL="jdbc:postgresql://localhost:5432/sms_db?user=admin&password=secret"
 PORT="8080"
+
+# --- Dados de Contato (Estrutura de Objeto) ---
+MOCK_CUSTOMER_DATA='{"waba_id_1": {"name": "Cliente A", "phone": "+5511999998888", "email": "cliente.a@example.com"}}'
+
+# --- Credenciais do Canal de SMS ---
+SMS_API_URL="https://api.sms_provider.com/send"
+SMS_API_TOKEN="seu_token_de_api_sms"
+SMS_API_USER="seu_usuario_de_api_sms"
+
+# --- Credenciais do Canal de Email ---
+EMAIL_API_URL="https://www.apiswagger.com.br/api/email/send_single_email_to_single_or_multiple_recipients"
+EMAIL_API_TOKEN="seu_token_de_api_email"
+EMAIL_API_USER="seu_usuario_de_api_email"
 ```
 
-**Passo 2: Preparar o Banco de Dados**
-Antes de iniciar o serviço, certifique-se de que a tabela para armazenar as chaves de notificação exista.
-
-```sql
-CREATE TABLE IF NOT EXISTS sent_notifications (
-    id SERIAL PRIMARY KEY,
-    notification_key VARCHAR(255) UNIQUE NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-**Passo 3: Executar os Serviços**
-
-1.  **Terminal 1 (`notification-watcher`):**
-      * Navegue até o diretório do `notification-watcher`.
-      * Configure as variáveis de ambiente necessárias para ele (ver documentação específica).
-      * Execute `lein run`.
-2.  **Terminal 2 (`sms-notifier`):**
-      * Navegue até o diretório do `sms-notifier`.
-      * Exporte as variáveis de ambiente listadas acima.
-      * Execute `lein run`.
-
-O serviço `sms-notifier` irá carregar as chaves do banco de dados, iniciar seu servidor web na porta `8080` e começar o ciclo de consulta ao `notification-watcher`.
+**Passo 2 e 3 (Preparar DB e Executar) permanecem os mesmos.**
 
 -----
 
 ## 6\. Detalhes das APIs e Contratos
 
-### 6.1. API Interna: `notification-watcher` -> `sms-notifier`
+### 6.1. API Interna: `notification-watcher` -> Serviço de Notificação
+*   Permanece inalterada (`GET /changed-templates`).
 
-  * **Endpoint:** `GET /changed-templates`
-  * **Fornecido por:** `notification-watcher`
-  * **Consumido por:** `sms-notifier`
-  * **Resposta (200 OK):** Um array JSON de objetos de template.
-    ```json
-    [
-      {
-        "id": "template_abc123",
-        "elementName": "boas_vindas_premium",
-        "wabaId": "waba_id_1",
-        "category": "MARKETING",
-        "oldCategory": "UTILITY",
-        "status": "APPROVED",
-        "language": "pt_BR"
-      }
-    ]
-    ```
+### 6.2. API Externa: Serviço de Notificação -> Provedor de SMS
+*   Permanece inalterada.
 
-### 6.2. API Externa: `sms-notifier` -> Provedor de SMS
-
-  * **Endpoint:** `POST /send` (Exemplo, depende do provedor)
-  * **Fornecido por:** Provedor de SMS
-  * **Consumido por:** `sms-notifier`
-  * **Payload (Exemplo):**
+### 6.3. API Externa: Serviço de Notificação -> Provedor de Email (Novo)
+*   **Endpoint:** `POST /send_single_email_to_single_or_multiple_recipients` (Exemplo)
+*   **Payload (Exemplo):**
     ```json
     {
-      "user": "seu_usuario_de_api",
-      "type": 2,
-      "contact": [
-        {
-          "number": "+5511999998888",
-          "message": "Alerta de Mudança de Categoria...",
-          "externalid": "template_abc123"
-        }
-      ],
-      "costcenter": 0,
-      "fastsend": 0,
-      "validate": 0
+      "user": "seu_usuario_de_api_email",
+      "from_email": "noreplay@jmmaster.com",
+      "from_name": "JM Master Group",
+      "contact": [{
+        "to_email": "cliente.a@example.com",
+        "to_name": "Cliente A",
+        "subject": "Alerta de Mudança de Categoria...",
+        "externalid": "template_abc123"
+      }],
+      "body": "<h1>Alerta de Mudança de Categoria!</h1>..."
     }
     ```
-  * **Resposta Esperada:** Um status `200 OK` com um corpo JSON indicando sucesso.
 
 -----
 
-## 7\. Considerações de Robustez e Escalabilidade
+## 7\. Conclusão
 
-*   **Idempotência:** O uso do banco de dados para rastrear notificações enviadas é o pilar da robustez do sistema, prevenindo envios duplicados.
-*   **Tratamento de Erros:** O código inclui blocos `try-catch` para lidar com falhas de conexão com o `notification-watcher` e com o banco de dados.
-*   **Timeouts:** As chamadas HTTP para a API do `notification-watcher` e para a API de SMS possuem timeouts configurados (5 segundos para o watcher, 5 minutos para a API de SMS) para evitar que o serviço fique bloqueado.
-*   **Escalabilidade:** Atualmente, o serviço opera em um modelo de *single instance*. Para escalar, seria necessário implementar um mecanismo de locking distribuído (ex: usando Redis ou locks a nível de banco de dados) para garantir que múltiplas instâncias não processem a mesma notificação simultaneamente.
-
------
-
-## 8\. Conclusão
-
-O serviço `sms-notifier` representa uma evolução significativa do protótipo inicial. Ao incorporar persistência de dados e integração com serviços reais, ele se torna uma ferramenta confiável e robusta para a notificação de clientes. A documentação atual reflete essa maturidade e serve como um guia para a manutenção e futuras expansões do serviço.
-
-**Fim do Documento**
+O serviço de notificação evoluiu para uma plataforma multicanal robusta, aumentando o valor entregue aos clientes ao notificá-los por SMS e Email. A arquitetura baseada em protocolos garante que o serviço possa ser facilmente estendido no futuro para incluir novos canais de comunicação.
