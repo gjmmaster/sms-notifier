@@ -116,30 +116,34 @@
       (println (str "Falha ao salvar chave no DB (Circuito Aberto?): " (.getMessage e))))))
 
 (defn process-notification [template spam-counter]
-  (let [waba-id (:wabaId template)
-        template-id (:id template)
-        new-category (:category template)
+  (let [waba-id          (:wabaId template)
+        template-id      (:id template)
+        new-category     (:category template)
         notification-key (str template-id "_" new-category)]
     (if (@sent-notifications-cache notification-key)
       (println (str "Notificação para " notification-key " já processada (cache). Ignorando."))
-      (if-let [contact-info (get-contact-info waba-id)]
-        (let [current-count (get @spam-counter contact-info 0)]
-          (if (>= current-count SPAM_LIMIT)
-            (println (str "ALERTA DE SPAM: Limite de " SPAM_LIMIT " mensagens para " contact-info " atingido. Notificação para " notification-key " bloqueada."))
-            (do
-              (swap! spam-counter update contact-info (fn [c] (inc (or c 0))))
-              (let [message-details (build-message-details template)
-                    sms-message {:body (:sms message-details) :template-id (:template-id message-details)}
-                    email-message {:subject (:subject (:email message-details)) :body (:body (:email message-details)) :template-id (:template-id message-details)}]
-                (doseq [channel active-channels]
-                  (try
-                    (let [response (p/send! channel contact-info (if (= (type channel) sms_notifier.channels.sms.SmsChannel) sms-message email-message))]
-                      (if (= (:status response) 200)
-                        (println (str "Notificação enviada com sucesso via " (type channel) "."))
-                        (println (str "Falha ao enviar notificação via " (type channel) ". Resposta: " (:body response)))))
-                    (catch Exception e
-                      (println (str "Erro ao enviar notificação via " (type channel) ": " (.getMessage e))))))
-                (persist-notification-key! notification-key)))))
+      (if-let [raw-contact-info (get-contact-info waba-id)]
+        (let [contact-list (if (sequential? raw-contact-info)
+                             raw-contact-info
+                             [raw-contact-info])]
+          (doseq [contact-info contact-list]
+            (let [current-count (get @spam-counter contact-info 0)]
+              (if (>= current-count SPAM_LIMIT)
+                (println (str "ALERTA DE SPAM: Limite de " SPAM_LIMIT " mensagens para " contact-info " atingido. Notificação para " notification-key " bloqueada."))
+                (do
+                  (swap! spam-counter update contact-info (fn [c] (inc (or c 0))))
+                  (let [message-details (build-message-details template)
+                        sms-message   {:body (:sms message-details) :template-id (:template-id message-details)}
+                        email-message {:subject (:subject (:email message-details)) :body (:body (:email message-details)) :template-id (:template-id message-details)}]
+                    (doseq [channel active-channels]
+                      (try
+                        (let [response (p/send! channel contact-info (if (= (type channel) sms_notifier.channels.sms.SmsChannel) sms-message email-message))]
+                          (if (= (:status response) 200)
+                            (println (str "Notificação enviada com sucesso para " (:name contact-info) " via " (type channel) "."))
+                            (println (str "Falha ao enviar notificação para " (:name contact-info) " via " (type channel) ". Resposta: " (:body response)))))
+                        (catch Exception e
+                          (println (str "Erro ao enviar notificação para " (:name contact-info) " via " (type channel) ": " (.getMessage e)))))))))))
+          (persist-notification-key! notification-key))
         (println (str "Aviso: Contato não encontrado para o WABA ID: " waba-id))))))
 
 (defn fetch-and-process-templates []

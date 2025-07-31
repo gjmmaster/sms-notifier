@@ -25,8 +25,8 @@ O serviço foi projetado para iniciar um servidor web mínimo que responde a req
     *   `DATABASE_URL`: String de conexão para seu banco de dados PostgreSQL (ex: a partir de um DB gratuito no próprio Render).
 
     ### Dados de Contato
-    *   `MOCK_CUSTOMER_DATA`: Cole a sua string JSON de contatos. **Atenção para a nova estrutura de objeto.**
-        *   **Exemplo:** `'{"waba_id_1": {"name": "Cliente A", "phone": "+5511999998888", "email": "cliente.a@example.com"}}'`
+    *   `MOCK_CUSTOMER_DATA`: Cole a sua string JSON de contatos. **A estrutura agora é flexível, suportando listas de contatos e listas de emails/telefones.**
+        *   **Exemplo:** `'{ "waba_id_1": [ { "name": "Empresa A Contato 1", "phone": "111111111", "email": "contato1@empresa_a.com" }, { "name": "Empresa A Contato 2", "phone": ["222222222", "333333333"] } ], "waba_id_2": { "name": "Empresa B", "email": ["financeiro@empresa_b.com", "ceo@empresa_b.com"] } }'`
 
     ### Credenciais de Canais
     *   **Canal de SMS:**

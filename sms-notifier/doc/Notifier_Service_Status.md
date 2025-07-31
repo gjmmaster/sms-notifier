@@ -1,8 +1,8 @@
 # Documentação Técnica Detalhada: Serviço de Notificação Multicanal
 
-**ID do Documento:** DOC-SN-CORE-20250731-v1.2
+**ID do Documento:** DOC-SN-CORE-20250731-v1.3
 **Data:** 31 de Julho de 2025
-**Versão:** 1.2 (Reflete a arquitetura multicanal com SMS e Email)
+**Versão:** 1.3 (Reflete o tratamento flexível de contatos)
 **Autores:** Jules (AI Assistant), Contribuidores do Projeto
 
 ## 1. Propósito
@@ -41,8 +41,29 @@ O serviço é configurado exclusivamente por variáveis de ambiente.
 *   **`DATABASE_URL`** (String): String de conexão JDBC para o banco de dados PostgreSQL. Ex: `"jdbc:postgresql://user:pass@host:port/dbname"`.
 
 #### Variáveis de Contato
-*   **`MOCK_CUSTOMER_DATA`** (String): String JSON usada para mapear um `wabaId` a um objeto de contato. **A estrutura foi expandida para suportar múltiplos canais.**
-    *   **Exemplo:** `'{"waba_id_1": {"name": "Cliente A", "phone": "+5511999998888", "email": "cliente.a@example.com"}, "waba_id_2": {"name": "Cliente B", "phone": "+5521888887777"}}'`
+*   **`MOCK_CUSTOMER_DATA`** (String): String JSON usada para mapear um `wabaId` aos seus contatos. A estrutura agora é **altamente flexível**:
+    *   Um `wabaId` pode mapear para um **único objeto** de contato ou para uma **lista de objetos** de contato.
+    *   Dentro de um objeto de contato, os valores para `:phone`, `:email`, e `:whatsapp-number` podem ser uma **única string** ou uma **lista de strings**.
+    *   **Exemplo:**
+        ```json
+        '{
+          "waba_id_1": [
+            {
+              "name": "Empresa A Contato 1",
+              "phone": "111111111",
+              "email": "contato1@empresa_a.com"
+            },
+            {
+              "name": "Empresa A Contato 2",
+              "phone": ["222222222", "333333333"]
+            }
+          ],
+          "waba_id_2": {
+            "name": "Empresa B",
+            "email": ["financeiro@empresa_b.com", "ceo@empresa_b.com"]
+          }
+        }'
+        ```
 
 #### Variáveis por Canal
 
@@ -65,10 +86,12 @@ O serviço é configurado exclusivamente por variáveis de ambiente.
     *   **Fluxo de Execução Atualizado:**
         1.  Cria a `notification-key` a partir do template.
         2.  Verifica a existência da chave no cache de idempotência.
-        3.  Se a chave é nova, busca o **objeto de contato** para o `wabaId`.
-        4.  Se o contato for encontrado, o sistema itera sobre a lista de `active-channels` (definida em `core.clj`, atualmente contém SMS e Email).
-        5.  Para cada canal ativo, a função `p/send!` é invocada com os detalhes de contato e da mensagem. O sistema constrói uma mensagem em texto plano para SMS e uma em HTML para Email.
-        6.  Após tentar enviar por todos os canais, a chave de notificação é salva no banco de dados para garantir a idempotência.
+        3.  Se a chave é nova, busca os dados de contato para o `wabaId`. O sistema normaliza o resultado para sempre ser uma **lista de contatos**.
+        4.  O sistema itera sobre cada **contato** na lista.
+        5.  Para cada contato, ele aplica a lógica de anti-spam.
+        6.  Se o contato não estiver bloqueado, o sistema itera sobre a lista de `active-channels` (SMS, Email, etc.).
+        7.  A função `p/send!` de cada canal é chamada. Os canais são responsáveis por lidar com múltiplos valores (ex: uma lista de emails no campo `:email`).
+        8.  **Após todos os contatos terem sido processados**, a `notification-key` é salva uma única vez no banco de dados para garantir a idempotência.
 
 ## 4. Considerações para Evolução Futura
 

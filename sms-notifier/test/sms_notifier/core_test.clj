@@ -72,17 +72,19 @@
         (is (zero? @notifications-sent-count))))))
 
 (deftest process-notification-test-success
-  (testing "Successful processing"
+  (testing "Successful processing with multiple contacts"
     (let [template {:wabaId "waba_id_1", :id "template_1", :category "NEW_CATEGORY"}
           notifications-sent-count (atom 0)
           mock-channel (->MockChannel notifications-sent-count)
-          saved-keys (atom #{})]
-      (with-redefs [active-channels [mock-channel mock-channel]
-                    get-contact-info (fn [_] {:phone "+5511999998888", :email "test@test.com"})
-                    ;; Mock the new, more testable function
+          saved-keys (atom #{})
+          contact-list [{:name "Contact 1", :phone "111"}
+                        {:name "Contact 2", :email "contact2@a.com"}]]
+      (with-redefs [active-channels [mock-channel mock-channel] ; 2 active channels
+                    get-contact-info (fn [_] contact-list) ; 2 contacts in the list
                     sms-notifier.core/persist-notification-key! (fn [key] (swap! saved-keys conj key))]
         (process-notification template (atom {}))
-        (is (= 2 @notifications-sent-count))
+        ;; Each contact should be notified by each channel
+        (is (= 4 @notifications-sent-count)) ; 2 contacts * 2 channels = 4
         (is (contains? @saved-keys "template_1_NEW_CATEGORY"))))))
 
 ;; --- FETCH AND PROCESS TEST ---
@@ -106,7 +108,8 @@
           mock-channel (->MockChannel notifications-sent-count)
           template-generator (fn [i] {:wabaId "waba_id_1", :id (str "template_" i), :category "NEW_CATEGORY"})]
       (with-redefs [active-channels [mock-channel]
-                    get-contact-info (fn [_] contact-info)
+                    ;; Return the contact object in a list to test the new structure
+                    get-contact-info (fn [_] [contact-info])
                     sms-notifier.core/persist-notification-key! (fn [key] (swap! sent-notifications-cache conj key))]
 
         ; Send 5 messages, which should be allowed
