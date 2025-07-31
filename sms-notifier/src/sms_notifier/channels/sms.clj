@@ -34,14 +34,23 @@
 (defrecord SmsChannel []
   p/NotificationChannel
   (send! [this contact-info message-details]
-    (let [phone-number (:phone contact-info)
-          message-body (:body message-details)
-          template-id (:template-id message-details)]
-      (if phone-number
+    (let [phone-numbers (let [p (:phone contact-info)]
+                          (cond
+                            (coll? p) p
+                            (nil? p) []
+                            :else [p]))
+          message-body  (:body message-details)
+          template-id   (:template-id message-details)
+          results       (atom [])]
+      (if (empty? phone-numbers)
+        {:status 400 :body "Nenhum número de telefone fornecido."}
         (do
-          (println (str "  [SMS Channel] Disparando envio para o número: " phone-number))
-          (send-sms-via-api phone-number message-body template-id))
-        {:status 400 :body "Número de telefone não fornecido para o canal de SMS."}))))
+          (doseq [phone phone-numbers]
+            (println (str "  [SMS Channel] Disparando envio para o número: " phone))
+            (let [response (send-sms-via-api phone message-body template-id)]
+              (swap! results conj response)))
+          (or (first (filter #(not= 200 (:status %)) @results))
+              {:status 200 :body "Todos os SMS foram enviados com sucesso."}))))))
 
 (defn make-sms-channel
   "Função construtora que cria uma instância do canal de SMS."

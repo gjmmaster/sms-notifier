@@ -32,16 +32,26 @@
 (defrecord EmailChannel []
   p/NotificationChannel
   (send! [this contact-info message-details]
-    (let [email-address (:email contact-info)
-          contact-name (:name contact-info)
-          subject (:subject message-details)
-          body (:body message-details)
-          template-id (:template-id message-details)]
-      (if email-address
+    (let [email-addresses (let [e (:email contact-info)]
+                            (cond
+                              (coll? e) e
+                              (nil? e) []
+                              :else [e]))
+          contact-name    (:name contact-info)
+          subject         (:subject message-details)
+          body            (:body message-details)
+          template-id     (:template-id message-details)
+          results         (atom [])]
+      (if (empty? email-addresses)
+        {:status 400 :body "Nenhum endereço de e-mail fornecido."}
         (do
-          (println (str "  [Email Channel] Disparando envio para o e-mail: " email-address))
-          (send-email-via-api email-address contact-name subject body template-id))
-        {:status 400 :body "Endereço de e-mail não fornecido para o canal de e-mail."}))))
+          (doseq [email email-addresses]
+            (println (str "  [Email Channel] Disparando envio para o e-mail: " email))
+            (let [response (send-email-via-api email contact-name subject body template-id)]
+              (swap! results conj response)))
+          ;; Return a summary: the first failure or a generic success
+          (or (first (filter #(not= 200 (:status %)) @results))
+              {:status 200 :body "Todos os emails foram enviados com sucesso."}))))))
 
 (defn make-email-channel []
   (->EmailChannel))
