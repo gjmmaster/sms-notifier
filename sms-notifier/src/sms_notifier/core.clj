@@ -15,7 +15,7 @@
 (def active-channels [(sms/make-sms-channel) (email/make-email-channel)])
 
 ;; --- LÓGICA DO CIRCUIT BREAKER PARA O BANCO DE DADOS ---
-(def circuit-breaker-config {:failure-threshold 3, :reset-timeout-ms 60000}) ; 3 falhas, 1 min de reset
+(def circuit-breaker-config {:failure-threshold 3, :reset-timeout-ms 60000})
 (def circuit-breaker-state (atom {:state :closed, :failures 0, :last-failure-time nil}))
 
 (defn trip-circuit-breaker! []
@@ -49,7 +49,7 @@
            (trip-circuit-breaker!)
            (throw e#))))))
 
-;; --- FUNÇÕES HELPER (DEFINIDAS ANTES DE SEREM USADAS) ---
+;; --- FUNÇÕES HELPER ---
 
 (defn load-keys-from-db! []
   (if-not db-spec
@@ -86,25 +86,6 @@
 
 ;; --- LÓGICA PRINCIPAL ---
 
-(defn- build-message-details [template]
-  {:sms   (str "Alerta de Mudança de Categoria de Template!\n\n"
-               "CANAL ATIVO: " (:wabaId template) "\n\n"
-               "    Nome do Template: " (:elementName template) "\n"
-               "    Categoria Anterior: " (:oldCategory template) "\n"
-               "    Nova Categoria: " (:category template) "\n\n\n"
-               "Atenciosamente,\n\n"
-               "JM MASTER GROUP.")
-   :email {:subject (str "Alerta de Mudança de Categoria de Template: " (:elementName template))
-           :body    (str "<h1>Alerta de Mudança de Categoria!</h1>"
-                         "<p><b>CANAL ATIVO:</b> " (:wabaId template) "</p>"
-                         "<ul>"
-                         "<li><b>Nome do Template:</b> " (:elementName template) "</li>"
-                         "<li><b>Categoria Anterior:</b> " (:oldCategory template) "</li>"
-                         "<li><b>Nova Categoria:</b> " (:category template) "</li>"
-                         "</ul>"
-                         "<p>Atenciosamente,<br>JM MASTER GROUP.</p>")}
-   :template-id (:id template)})
-
 (def SPAM_LIMIT 5)
 
 (defn- persist-notification-key! [notification-key]
@@ -132,17 +113,14 @@
                 (println (str "ALERTA DE SPAM: Limite de " SPAM_LIMIT " mensagens para " contact-info " atingido. Notificação para " notification-key " bloqueada."))
                 (do
                   (swap! spam-counter update contact-info (fn [c] (inc (or c 0))))
-                  (let [message-details (build-message-details template)
-                        sms-message   {:body (:sms message-details) :template-id (:template-id message-details)}
-                        email-message {:subject (:subject (:email message-details)) :body (:body (:email message-details)) :template-id (:template-id message-details)}]
-                    (doseq [channel active-channels]
-                      (try
-                        (let [response (p/send! channel contact-info (if (= (type channel) sms_notifier.channels.sms.SmsChannel) sms-message email-message))]
-                          (if (= (:status response) 200)
-                            (println (str "Notificação enviada com sucesso para " (:name contact-info) " via " (type channel) "."))
-                            (println (str "Falha ao enviar notificação para " (:name contact-info) " via " (type channel) ". Resposta: " (:body response)))))
-                        (catch Exception e
-                          (println (str "Erro ao enviar notificação para " (:name contact-info) " via " (type channel) ": " (.getMessage e)))))))))))
+                  (doseq [channel active-channels]
+                    (try
+                      (let [response (p/send! channel contact-info template)]
+                        (if (= (:status response) 200)
+                          (println (str "Notificação enviada com sucesso para " (:name contact-info) " via " (type channel) "."))
+                          (println (str "Falha ao enviar notificação para " (:name contact-info) " via " (type channel) ". Resposta: " (:body response)))))
+                      (catch Exception e
+                        (println (str "Erro ao enviar notificação para " (:name contact-info) " via " (type channel) ": " (.getMessage e))))))))))
           (persist-notification-key! notification-key))
         (println (str "Aviso: Contato não encontrado para o WABA ID: " waba-id))))))
 
@@ -174,11 +152,11 @@
 (defn app-handler [request]
   {:status 200, :headers {"Content-Type" "text/plain; charset=utf-8"}, :body "Serviço SMS Notifier está no ar."})
 
-;; --- PONTO DE ENTRADA ATUALIZADO COM VERIFICAÇÃO DE SEGURANÇA ---
+;; --- PONTO DE ENTRADA ---
 (defn -main [& args]
   (let [port (Integer/parseInt (env :port "8080"))]
     (println "======================================")
-    (println "  SMS Notifier v0.4.1 (Resiliente, Ordem Corrigida)")
+    (println "  SMS Notifier v0.5.0 (Arquitetura de Canais Refatorada)")
     (println "======================================")
 
     (load-keys-from-db!)
@@ -188,7 +166,7 @@
       (do
         (println "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
         (println "!! ERRO CRÍTICO DE SEGURANÇA: O CACHE DE NOTIFICAÇÕES ESTÁ VAZIO. !!")
-        (println "!! PARA PREVENIR O REENVIO EM MASSA DE SMS, O WORKER NÃO SERÁ INICIADO. !!")
+        (println "!! PARA PREVENIR O REENVIO EM MASSA, O WORKER NÃO SERÁ INICIADO. !!")
         (println "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n")
         (server/run-server (fn [req] {:status 503 :body "Serviço em modo de segurança. Worker inativo."}) {:port port}))
       (do
