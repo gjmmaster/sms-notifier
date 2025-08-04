@@ -82,6 +82,15 @@ O sistema é composto por um microsserviço de monitoramento, um microsserviço 
         v.  **Envio:** O canal é responsável por enviar a notificação. Ele é inteligente o suficiente para lidar com múltiplos valores (ex: um array de emails no campo `:email` do contato).
         vi. **Persistência:** Após todos os contatos para aquele template serem processados, a `notification-key` é salva no banco de dados **uma única vez**.
 
+### 3.4. Mecanismo de Controle Anti-Spam
+
+Para garantir o uso consciente dos recursos de notificação e prevenir o envio massivo de mensagens para um mesmo destinatário em um curto período, o serviço implementa um mecanismo de controle de spam a nível de memória.
+
+*   **Funcionamento:** Durante cada ciclo de `fetch-and-process-templates`, o sistema mantém um contador para cada contato individual (ex: número de telefone ou email).
+*   **Limite:** Por padrão, há um limite de **5 notificações** por contato (`SPAM_LIMIT`).
+*   **Ação:** Se o número de tentativas de envio para um mesmo contato exceder este limite dentro do mesmo ciclo, as notificações subsequentes para aquele contato são bloqueadas e um alerta é registrado no log do sistema.
+*   **Escopo:** É importante notar que este contador é reiniciado a cada novo ciclo de busca por templates, ou seja, ele não é persistido entre as execuções do worker. Seu objetivo é conter anomalias ou bugs que poderiam levar a um loop de envio dentro de uma única execução.
+
 -----
 
 ## 4\. Pilha Tecnológica (Stack)

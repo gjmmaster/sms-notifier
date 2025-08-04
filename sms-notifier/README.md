@@ -12,6 +12,7 @@ Sua função é consumir alertas sobre mudanças de categoria de templates do se
   * **Envio de Notificações por SMS**: Integra-se com uma API de SMS externa para enviar alertas formatados aos contatos dos clientes.
   * **Idempotência com Persistência**: Utiliza um banco de dados (como PostgreSQL) para registrar todas as notificações já enviadas. Isso previne o envio de alertas duplicados, mesmo que o serviço seja reiniciado.
   * **Resiliência (Circuit Breaker)**: Implementa um padrão de Circuit Breaker que interrompe as operações com o banco de dados em caso de falhas repetidas, evitando sobrecarga e permitindo a recuperação do sistema.
+  * **Controle de Spam**: Para evitar o envio excessivo de mensagens, o sistema limita o número de notificações para um mesmo contato durante um único ciclo de processamento.
   * **Configuração Flexível**: O comportamento do serviço é totalmente controlado por variáveis de ambiente, facilitando o deploy em diferentes ambientes.
 
 ## Documentação Detalhada
