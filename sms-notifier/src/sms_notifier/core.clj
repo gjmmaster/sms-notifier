@@ -6,13 +6,14 @@
             [clojure.java.jdbc :as jdbc]
             [sms-notifier.protocols :as p]
             [sms-notifier.channels.sms :as sms]
-            [sms-notifier.channels.email :as email])
+            [sms-notifier.channels.email :as email]
+            [sms-notifier.channels.whatsapp :as whatsapp])
   (:gen-class))
 
 (def sent-notifications-cache (atom #{}))
 (def mock-customer-data (atom {}))
 (def db-spec (env :database-url))
-(def active-channels [(sms/make-sms-channel) (email/make-email-channel)])
+(def active-channels [(sms/make-sms-channel) (email/make-email-channel) (whatsapp/make-whatsapp-channel)])
 
 ;; --- LÓGICA DO CIRCUIT BREAKER PARA O BANCO DE DADOS ---
 (def circuit-breaker-config {:failure-threshold 3, :reset-timeout-ms 60000})
