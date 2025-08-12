@@ -1,0 +1,25 @@
+# .github/workflows/keep-alive.yml
+name: Keep Services Awake
+
+on:
+  schedule:
+    # ATUALIZADO: Executa a cada 7 minutos, das 12h às 21h UTC (9h às 18h BRT), de segunda a sexta.
+    - cron: '*/7 12-21 * * 1-5'
+
+  workflow_dispatch: # Permite execução manual
+
+jobs:
+  ping-services:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping sms-notifier
+        run: |
+          echo "Pinging sms-notifier to keep it awake..."
+          response=$(curl -s -w "%{http_code}" "${{ secrets.SMS_NOTIFIER_URL }}")
+          echo "sms-notifier responded with: $response"
+
+      - name: Ping notification-watcher
+        run: |
+          echo "Pinging notification-watcher to keep it awake..."
+          response=$(curl -s -w "%{http_code}" "${{ secrets.NOTIFICATION_WATCHER_URL }}")
+          echo "notification-watcher responded with: $response"
