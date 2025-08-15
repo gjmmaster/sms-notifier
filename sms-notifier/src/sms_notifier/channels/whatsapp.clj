@@ -1,45 +1,55 @@
-;; src/sms_notifier/channels/whatsapp.clj
 (ns sms-notifier.channels.whatsapp
   (:require [sms-notifier.protocols :as p]
             [clj-http.client :as client]
             [cheshire.core :as json]
             [environ.core :refer [env]]
-            [sms-notifier.utils :as utils]))
+            [sms-notifier.utils :as utils]
+            [sms-notifier.auth :as auth]))
 
 (defn- build-whatsapp-payload [contact-phone template]
-  "Constrói o corpo (payload) da requisição para a API de WhatsApp."
-  {:templateID (env :whatsapp-template-id "970b43ad-4f93-4e53-9065-408009b140d2")
-   :telefone contact-phone
-   :grupo "comercial"
-   :vip true
-   :variaveis {:mensagem {:additionalProp1 (:wabaId template)
-                           :additionalProp2 (utils/clean-template-name (:elementName template))
-                           :additionalProp3 (:oldCategory template)
-                           :additionalProp4 (:category template)}}
-   :internacional true})
+   {:templateID (env :whatsapp-template-id "970b43ad-4f93-4e53-9065-408009b140d2")
+    :telefone contact-phone
+    :grupo "comercial"
+    :vip true
+    :variaveis {:mensagem
+                {:additionalProp1 (:wabaId template)
+                 :additionalProp2 (utils/clean-template-name (:elementName template))
+                 :additionalProp3 (:oldCategory template)
+                 :additionalProp4 (:category template)}}
+    :internacional true})
+
+
+(defn- send-attempt!
+  "Função auxiliar que realiza uma única tentativa de envio."
+  [api-url contact-phone template]
+  (if-let [api-token (auth/get-valid-token!)]
+    (let [payload (build-whatsapp-payload contact-phone template)]
+      (try
+        (client/post api-url
+                     {:headers      {:Authorization (str "Token " api-token)}
+                      :body         (json/generate-string payload)
+                      :content-type :json
+                      :as           :json
+                      :throw-exceptions false
+                      :conn-timeout 30000
+                      :socket-timeout 30000})
+        (catch Exception e
+          {:status 500 :body (str "Erro de conexão com a API de WhatsApp: " (.getMessage e))})))
+    {:status 500 :body "Falha ao obter um token de autenticação do gerenciador."}))
 
 (defn- send-whatsapp-via-api [contact-phone template]
-  "Função privada para enviar a notificação via API de WhatsApp."
+  "Envia a notificação com lógica de 'tentativa e recuperação'."
   (if-let [api-url (env :whatsapp-api-url)]
-    (if-let [api-token (env :whatsapp-api-token)]
-      (let [payload (build-whatsapp-payload contact-phone template)
-            response (try
-                       (client/post api-url
-                                    {:headers {:Authorization (str "Token " api-token)}
-                                     :body (json/generate-string payload)
-                                     :content-type :json
-                                     :as :json ; <- MELHORIA: Converte a resposta para mapa
-                                     :throw-exceptions false
-                                     :conn-timeout 30000
-                                     :socket-timeout 30000})
-                       (catch Exception e
-                         {:status 500 :body (str "Erro de conexão com a API de WhatsApp: " (.getMessage e))}))]
-        ;; Log do resultado
-        (if (and (>= (:status response) 200) (< (:status response) 300))
-          (println (str "Protocolo WhatsApp recebido para " contact-phone ": " (get-in response [:body :data :protocol])))
-          (println (str "Falha ao enviar WhatsApp para " contact-phone ". Resposta: " (:body response))))
-        response)
-      {:status 500 :body "Variável de ambiente WHATSAPP_API_TOKEN não configurada."})
+    (let [first-attempt-response (send-attempt! api-url contact-phone template)]
+      ;; --- LÓGICA DE AUTO-RECUPERAÇÃO CONFIRMADA ---
+      ;; Se a API retornar 401, o token está inválido.
+      (if (= (:status first-attempt-response) 401)
+        (do
+          (println "INFO: Falha na autenticação (status 401 - Token Inválido). Forçando renovação e tentando novamente...")
+          (auth/refresh-token!) ; Força a busca por um novo token
+          (send-attempt! api-url contact-phone template)) ; Tenta uma segunda e última vez
+        
+        first-attempt-response))
     {:status 500 :body "Variável de ambiente WHATSAPP_API_URL não configurada."}))
 
 
@@ -58,6 +68,7 @@
               (swap! results conj response)))
           (or (first (filter #(not (and (>= (:status %) 200) (< (:status %) 300))) @results))
               {:status 200 :body "Todos as notificações de WhatsApp foram enviadas com sucesso."}))))))
+
 
 (defn make-whatsapp-channel []
   (->WhatsAppChannel))
