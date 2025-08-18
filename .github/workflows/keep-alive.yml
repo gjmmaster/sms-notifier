@@ -1,12 +1,9 @@
-# .github/workflows/keep-alive.yml
-# Versão final e recomendada
-
 name: Keep Services Awake
 
 on:
   schedule:
-    # Executa a cada 7 minutos, das 12h às 21h UTC (9h às 18h BRT), de segunda a sexta.
-    - cron: '*/7 12-21 * * 1-5'
+    # Executa a cada 10 minutos, das 11h às 22h UTC (8h às 19h BRT), de segunda a sexta.
+    - cron: '*/10 11-22 * * 1-5'
 
   workflow_dispatch: # Permite execução manual
 
@@ -14,14 +11,24 @@ jobs:
   ping-services:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping sms-notifier
+      - name: Ping sms-notifier with retries
         run: |
-          echo "Pinging sms-notifier to keep it awake..."
-          response=$(curl -s -w "%{http_code}" "${{ secrets.SMS_NOTIFIER_URL }}")
-          echo "sms-notifier responded with: $response"
-
-      - name: Ping notification-watcher
-        run: |
-          echo "Pinging notification-watcher to keep it awake..."
-          response=$(curl -s -w "%{http_code}" "${{ secrets.NOTIFICATION_WATCHER_URL }}")
-          echo "notification-watcher responded with: $response"
+          echo "🏓 Pinging sms-notifier to ensure it's awake..."
+          for i in {1..3}; do
+            echo "Attempt $i of 3..."
+            # Define um timeout de 30s e trata falhas no curl
+            response=$(curl -s -w "%{http_code}" -m 30 "${{ secrets.SMS_NOTIFIER_URL }}" || echo "000")
+            http_code=${response: -3}
+            
+            # Verifica se o status code é de sucesso (2xx ou 3xx)
+            if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 400 ]; then
+              echo "✅ Service is awake and responding with status: $http_code"
+              exit 0
+            fi
+            
+            echo "Service not ready (status: $http_code), waiting 15 seconds before retry..."
+            sleep 15
+          done
+          
+          echo "❌ Service did not respond successfully after 3 attempts."
+          exit 1
