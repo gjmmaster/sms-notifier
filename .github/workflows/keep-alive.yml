@@ -6,7 +6,7 @@ name: Keep Services Awake
 on:
   schedule:
     # Executa a cada 10 minutos, das 11h às 22h UTC (8h às 19h BRT), de segunda a sexta.
-    - cron: '*/10 11-22 * * 1-5'
+    - cron: '*/5 11-22 * * 1-5'
 
   workflow_dispatch: # Permite execução manual
 
