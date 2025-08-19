@@ -120,10 +120,30 @@ Com isso, seu novo canal estará integrado ao fluxo de notificações do serviç
 
 ## 3. WhatsApp
 
-*   **Estado:** **Inativo por padrão e implementação MOCK.**
+*   **Estado:** **Ativo por padrão.**
 *   **Implementação:** `src/sms_notifier/channels/whatsapp.clj`
-*   **Descrição:** A implementação atual **não envia mensagens reais**. Ela apenas simula o envio, imprimindo no console uma mensagem formatada pela função `build-whatsapp-body`. Para ativá-lo, siga o passo 5 do guia "Como Criar um Novo Canal".
+*   **Descrição:** Envia notificações para o WhatsApp utilizando uma API externa. O canal possui um mecanismo de resiliência integrado para lidar com a expiração de tokens de autenticação.
 *   **Dependência em `MOCK_CUSTOMER_DATA`:** O objeto de contato deve conter a chave `:whatsapp-number`. O valor pode ser uma **string única** ou uma **lista de strings**.
     *   *Exemplo:* `{"name": "...", "whatsapp-number": ["1111", "2222"], ...}`
 *   **Variáveis de Ambiente Necessárias:**
-    *   Nenhuma no momento. A implementação real provavelmente exigirá novas variáveis.
+    *   `WHATSAPP_API_URL`: URL da API de envio de mensagens.
+    *   `WHATSAPP_AUTH_URL`: URL para obter tokens de autenticação.
+    *   `WHATSAPP_AUTH_USER`: Usuário para autenticação.
+    *   `WHATSAPP_AUTH_PASSWORD`: Senha para autenticação.
+    *   `WHATSAPP_TEMPLATE_ID`: ID do template de mensagem a ser usado.
+
+---
+
+## Gerenciamento de Autenticação e Resiliência (WhatsApp)
+
+O canal do WhatsApp introduz um sistema de gerenciamento de token automatizado para garantir a resiliência do serviço.
+
+*   **Token de Longa Duração:** O sistema obtém um token de autenticação da API de WhatsApp, que tem uma validade aproximada de 23 horas. Este token é mantido em um cache interno (`atom`) para ser reutilizado em múltiplos envios.
+
+*   **Renovação Automática:** Antes de cada envio, o sistema verifica se o token em cache está prestes a expirar (com uma margem de 5 minutos). Se estiver, ele automaticamente solicita um novo token e atualiza o cache, garantindo que as operações não falhem por expiração.
+
+*   **Mecanismo de Auto-Recuperação:** Se uma chamada à API de envio falhar com um status `401 Unauthorized` (indicando que o token é inválido por qualquer motivo), o sistema é programado para:
+    1.  Forçar a renovação do token imediatamente.
+    2.  Tentar reenviar a mensagem uma segunda vez com o novo token.
+
+Essa abordagem torna o canal do WhatsApp robusto a falhas de autenticação, minimizando a necessidade de intervenção manual e garantindo a entrega das notificações.
